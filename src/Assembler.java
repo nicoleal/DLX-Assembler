@@ -23,10 +23,10 @@ public class Assembler
 	public String input;
 	public String line;
 	public static BufferedReader bufferedReader;
-	ArrayList<String[]> symbolTable = new ArrayList<String[]>();
-	ArrayList<String> stringTable = new ArrayList<String>();
-	ArrayList<Integer> dataTable = new ArrayList<Integer>();
-	ArrayList<Float> floatTable = new ArrayList<Float>();
+	static ArrayList<String[]> symbolTable = new ArrayList<String[]>();
+	static ArrayList<String> stringTable = new ArrayList<String>();
+	static ArrayList<Integer> dataTable = new ArrayList<Integer>();
+	static ArrayList<Float> floatTable = new ArrayList<Float>();
 	private Scanner in;
 	
 	
@@ -79,10 +79,14 @@ public class Assembler
 		}
 	}
 	
-	
-	
-	
-	public void parse(String line)
+	/**
+	 * parse - determines if an input string is a label, nop, directive
+	 * 		or instruction. Has about five dozen helper methods to do
+	 * 		this, so more grand central than anything else.
+	 * 
+	 * @param line the input string
+	 */
+	public static void parse(String line)
 	{
 		 line = isLabel(line);
 		 
@@ -105,10 +109,8 @@ public class Assembler
 		 else
 		 {
 			 //instructions
-		 }
-		 
+		 }	 
 	}
-	
 	
 	/**
 	 * isLabel - determines if the instruction begins with a label. If so,
@@ -124,7 +126,7 @@ public class Assembler
 	 * @param line the original input string
 	 * @return line minus any labels that may exist
 	 */
-	public String isLabel(String line)
+	public static String isLabel(String line)
 	{
 		if (line.contains(":"))
 		{
@@ -145,10 +147,9 @@ public class Assembler
 	 * 
 	 * @return the nop hex code
 	 */
-	public String nop()
+	public static String nop()
 	{
-		String s = "00000000";
-		return s;
+		return "00000000";
 	}
 	
 	/**
@@ -158,54 +159,21 @@ public class Assembler
 	 * 
 	 * @param line the input string stripped of leading period
 	 */
-	public void directives(String line)
+	public static void directives(String line)
 	{
-		char c = line.charAt(0);
-		String s;
-		int index;
-		
-		switch (c) 
+		switch (line.charAt(0)) 
 		{
 		/*
 		 * Determines if .align or .asciiz. If .align, determines the decimal value of
 		 * 		the lower order bits to mask. Raises [2^(mask size) - 1] to get mask
 		 * 		and bitwise and's with address. Incrementally increases address until
 		 * 		low order bits are aligned. IF .asciiz, adds strings to stringTable.
-		 * 		Assumes values are separated by commas if in sequence, or otherwise 
-		 * 		only a single value. All strings are marked by 
+		 * 		Assumes values are entered individulally and are NOT marked by
+		 * 		either double or single quotes.
 		 */
 			case 0x61: //hex a
 			{
-				if (line.charAt(1) == 0x6C) // hex l
-				{
-					if ((line.charAt(2) == 0x69) && (line.charAt(3) == 0x67)
-							&& (line.charAt(4) == 0x6E)) //is it ".align" ?
-					{
-						index = ((int) Math.pow(2, Integer.parseInt(line.substring(6)))) - 1;
-						while ((address & index) != 0)
-						{
-							address++;
-						}
-					}
-				}
-				if (line.charAt(1) == 0x73) // hex s
-				{
-					if ((line.charAt(2) == 0x63) && (line.charAt(3) == 0x69)
-							&& (line.charAt(4) == 0x69) && (line.charAt(5) == 0x7A)) // is it ".asciiz" ?
-					{
-						s = line.substring(8);
-						CharSequence seq = ","; // 0x2C
-						while (s.contains(seq)) // while there are multiple strings
-						{
-							s = seq.toString();
-							index = s.indexOf(0x2C);
-							stringTable.add(s.substring(0, index - 1));
-							seq = seq.subSequence(index + 3, seq.length());
-						}
-						s = seq.toString();
-						stringTable.add(s.substring(0, s.length() - 1)); //add remaining string
-					}
-				}
+				a(line);
 				break;
 			}
 			/*
@@ -214,62 +182,20 @@ public class Assembler
 			 */
 			case 0x64: // hex d
 			{
-				if (line.charAt(1) == 0x61) // hex a
-				{
-					if ((line.charAt(2) == 0x74) && (line.charAt(3) == 0x61)) // is it ".data" ?
-					{
-						if (line.charAt(4) == 0x00) // is it JUST ".data" ?
-						{
-							address = data;
-						}
-						else // otherwise is ".data XXXX"
-						{
-							address = Integer.parseInt(line.substring(5), 16);
-						}
-					}
-				}
-				if (line.charAt(1) == 0x6F) // hex 0
-					if ((line.charAt(2) == 75) && (line.charAt(3) == 0x62)
-							&& (line.charAt(4) == 0x6C) && (line.charAt(5) == 0x65)) // is it ".double" ?
-					{
-						s = line.substring(7);
-						CharSequence seq = ","; // 0x2C
-						while (s.contains(seq)) // while there are multiple numbers
-						{
-							s = seq.toString();
-							index = s.indexOf(0x2C);
-							floatTable.add(Float.parseFloat(s.substring(0, index)));
-							seq = seq.subSequence(index + 2, seq.length());
-						}
-						floatTable.add(Float.parseFloat(seq.toString())); //add remaining number
-					}
+				d(line);
 				break;
 			}
 			/*
 			 * If it's .float, add numbers as 32-bit floats to floatTable, to be
 			 * 		added at end of instruction sequence, until there are no more
-			 * 		values left in sequence. Assumes values are separated by commas
-			 * 		if in sequence, or otherwise only a single value. All numbers are
-			 * 		assumed to be entered as floats. If not, break.
+			 * 		values left in sequence. Assumes values are entered indivdually. 
+			 * 		All numbers are assumed to be entered as floats. If not, break.
 			 * 
-			 * 		.float num1, num2, num3		or		.float num1
+			 *		.float num1
 			 */
 			case 0x66: // hex f
 			{
-				if ((line.charAt(1) == 0x6C) && (line.charAt(2) == 0x6F)
-						&& (line.charAt(3) == 0x6a) && (line.charAt(4) == 0x74)) // is it ".float" ?
-				{
-					s = line.substring(6);
-					CharSequence seq = ","; // 0x2C
-					while (s.contains(seq)) // while there are multiple numbers
-					{
-						s = seq.toString();
-						index = s.indexOf(0x2C);
-						floatTable.add(Float.parseFloat(s.substring(0, index)));
-						seq = seq.subSequence(index + 2, seq.length());
-					}
-					floatTable.add(Float.parseFloat(seq.toString())); //add remaining number
-				}
+				f(line);
 				break;
 			}
 			/*]
@@ -279,15 +205,7 @@ public class Assembler
 			 */
 			case 0x73: // hex s
 			{
-				if ((line.charAt(1) == 0x70) && (line.charAt(2) == 0x61)
-						&& (line.charAt(3) == 0x63) && (line.charAt(4) == 0x65)) //is it ".space" ?
-				{
-					index = Integer.parseInt(line.substring(6));
-					for (int i = 0; i < index; i++)
-					{
-						address++;
-					}
-				}
+				s(line);
 				break;
 			}
 			/*
@@ -295,18 +213,7 @@ public class Assembler
 			 */
 			case 0x74: // hex t
 			{
-				if ((line.charAt(1) == 0x65) && (line.charAt(2) == 0x78)
-						&& (line.charAt(3) == 0x74)) // is it ".text" ?
-				{
-					if (line.charAt(4) == 0x00) // is it JUST ".text" ?
-					{
-						address = 0x0;
-					}
-					else // otherwise is ".text XXXX"
-					{
-						address = Integer.parseInt(line.substring(5), 16);
-					}
-				}
+				t(line);
 				break;
 			}
 			/*
@@ -320,31 +227,19 @@ public class Assembler
 			 */
 			case 0x77: // hex w
 			{
-				if ((line.charAt(1) == 0x6F) && (line.charAt(2) == 0x72)
-						&& (line.charAt(3) == 0x64)) // is it ".word" ?
-				{
-					s = line.substring(5);
-					CharSequence seq = ","; // 0x2C
-					while (s.contains(seq)) // while there are multiple numbers
-					{
-						s = seq.toString();
-						index = s.indexOf(0x2C);
-						dataTable.add(Integer.parseInt(s.substring(0, index)));
-						seq = seq.subSequence(index + 2, seq.length());
-					}
-					dataTable.add(Integer.parseInt(seq.toString())); //add remaining number
-				}
+				w(line);
 				break;
 			}
 			default:
 				break;
 		}
-		
-		
-		
-		
-		
 	}
+
+		
+	
+
+	
+	
 	
 	
 	
@@ -358,6 +253,117 @@ public class Assembler
 			//addressPrinter();
 		//}
 		
+		System.out.println(address);
+		parse(".asciiz dog");
+		System.out.println(stringTable.get(0));
+		//parse(".align 4");
+		//System.out.println(address);
+		
 		bufferedReader.close();
 	}
+	
+	
+	/****************************************************************************
+	 * Here follows random helper methods who are properly commented where they *
+	 * 		first occur in the program.                                         *
+	 ***************************************************************************/
+	
+	public static void t(String line)
+	{
+		if ((line.charAt(1) == 0x65) && (line.charAt(2) == 0x78)
+				&& (line.charAt(3) == 0x74)) // is it ".text" ?
+		{
+			if (line.length() < 5) // is it JUST ".text" ?
+			{
+				address = 00;
+			}
+			else // otherwise is ".text XXXX"
+			{
+				address = Integer.parseInt(line.substring(5), 16);
+			}
+		}
+	}
+	
+	public static void s(String line)
+	{
+		if ((line.charAt(1) == 0x70) && (line.charAt(2) == 0x61)
+				&& (line.charAt(3) == 0x63) && (line.charAt(4) == 0x65)) //is it ".space" ?
+		{
+			int index = Integer.parseInt(line.substring(6));
+			for (int i = 0; i < index; i++)
+			{
+				address++;
+			}
+		}
+	}
+	
+	public static void d(String line)
+	{
+		if (line.charAt(1) == 0x61) // hex a
+		{
+			if ((line.charAt(2) == 0x74) && (line.charAt(3) == 0x61)) // is it ".data" ?
+			{
+				if (line.length() < 5) // is it JUST ".data" ?
+				{
+					address = data;
+				}
+				else // otherwise is ".data XXXX"
+				{
+					address = Integer.parseInt(line.substring(5), 16);
+				}
+			}
+		}
+		if (line.charAt(1) == 0x6F) // hex 0
+			if ((line.charAt(2) == 0X75) && (line.charAt(3) == 0x62)
+					&& (line.charAt(4) == 0x6C) && (line.charAt(5) == 0x65)) // is it ".double" ?
+			{
+				floatTable.add(Float.parseFloat(line.substring(7)));
+			}
+	}
+	
+	public static void f(String line)
+	{
+		if ((line.charAt(1) == 0x6C) && (line.charAt(2) == 0x6F)
+				&& (line.charAt(3) == 0x61) && (line.charAt(4) == 0x74)) // is it ".float" ?
+		{
+			floatTable.add(Float.parseFloat(line.substring(6)));
+		}
+	}
+	
+	public static void w(String line)
+	{
+		if ((line.charAt(1) == 0x6F) && (line.charAt(2) == 0x72)
+				&& (line.charAt(3) == 0x64)) // is it ".word" ?
+		{
+			dataTable.add(Integer.parseInt(line.substring(5)));
+		}
+	}
+	
+	public static void a(String line)
+	{
+		int index;
+		if (line.charAt(1) == 0x6C) // hex l
+		{
+			if ((line.charAt(2) == 0x69) && (line.charAt(3) == 0x67)
+					&& (line.charAt(4) == 0x6E)) //is it ".align" ?
+			{
+				index = ((int) Math.pow(2, Integer.parseInt(line.substring(6)))) - 1;
+				while ((address & index) != 0)
+				{
+					address++;
+				}
+			}
+		}
+		if (line.charAt(1) == 0x73) // hex s
+		{
+			if ((line.charAt(2) == 0x63) && (line.charAt(3) == 0x69)
+					&& (line.charAt(4) == 0x69) && (line.charAt(5) == 0x7A)) // is it ".asciiz" ?
+			{
+				String s = line.substring(7);
+				stringTable.add(s.substring(0, s.length()));
+			}
+		}
+	}
+	
+	
 }
