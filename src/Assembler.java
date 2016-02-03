@@ -21,7 +21,11 @@ public class Assembler
 	public static int address = 0;
 	public static int data = 0x200;
 	public String input;
-	public String line;
+	public static String line;
+	public static String immediate;
+	public static String rs1;
+	public static String rs2;
+	public static String rd;
 	public static BufferedReader bufferedReader;
 	static ArrayList<String[]> symbolTable = new ArrayList<String[]>();
 	static ArrayList<String> stringTable = new ArrayList<String>();
@@ -89,7 +93,6 @@ public class Assembler
 	public static void parse(String line)
 	{
 		 line = isLabel(line);
-		 
 		 int index = 0;
 		 char c = line.charAt(index);
 		 
@@ -98,17 +101,20 @@ public class Assembler
 			 c = line.charAt(index + 1);
 		 }
 		 
+		 
 		 if (c == 0x00) // NULL
 		 {
 			 line = nop();
 		 }
+		 else if (c == 0x3B); // hex ;
 		 else if (c == 0x2E) //hex .
 		 {
 			 directives(line.substring(1));
 		 }
 		 else
 		 {
-			 //instructions
+			 line = Integer.toString(Integer.parseInt(instruction(line), 2), 16);
+			 System.out.println(line);
 		 }	 
 	}
 	
@@ -120,7 +126,7 @@ public class Assembler
 	 * 		occurs after the colon to parse(); otherwise it returns parse
 	 * 		unchanged, as shown below:
 	 * 
-	 * 		XXXXXXXX: XXXXXXXXXX		or		XXXXXXXXXX
+	 * 		XXXXXXXX: XXXXXXXXXX		or		XXXXXXXXXX:
 	 * 		  LABEL      LINE					   LINE
 	 * 
 	 * @param line the original input string
@@ -135,7 +141,11 @@ public class Assembler
 			String label = line.substring(0, c);
 			String[] s = {label, ((Integer) address).toString()};
 			symbolTable.add(s);
-			line = line.substring(c + 1);
+			
+			if (line.length() <= c) 
+			{
+				line = line.substring(c + 1);
+			}
 		}
 		return line;
 	}
@@ -235,9 +245,60 @@ public class Assembler
 		}
 	}
 
-		
-	
+	/**
+	 * instruction - takes on the Sisyphean task of decoding the DLX instructions
+	 * 		contains about as many helper methods as you can imagine this taking,
+	 * 		which determine which of the various instructions it is and encodes it
+	 * 		in the proper format. Assumes all instructions are written in LOWER
+	 * 		CASE LETTERS. Assumes all registers are entered as 2-digit values,
+	 * 		ie, 09 or 31, with no commas in the instruction.
+	 * 
+	 * DOES NOT CHECK CHAR BY CHAR FOR CORRECT INSTRUCTION. An incorrect instruction
+	 * 		may slip past if it meets certain criteria - ie, "anei" will be read as
+	 * 		"andi" because it starts with "a", and contains "i" and "n". 
+	 * 
+	 * INSTRUCTIONS CONSIDERED TO USE "SPECIAL" REGISTERS INCLUDE: cvtf2d, cvtf2i,
+	 * 		cvtd2f, cvtd2i, cvti2f, cvti2d,
+	 *  	
+	 * @param line the input string stripped of any leading spaces, labels, etc.
+	 */
+	public static String instruction(String line)
+	{
+		switch(line.charAt(0))
+		{
+			/*
+			 * Determines if instruction is: ADDI, ADDUI, ANDI, ADD, ADDU, AND
+			 * 		ADDF, or ADDD. Passes along to the appropriate coder if one 
+			 * 		of the above.
+			 */
+			case 0x61: //hex a
+			{
+				line = ia(line);
+				break;
+			}
+			/*
+			 * Determines if instruction is: BEQZ, BNEZ, BFPT, or BFPF.
+			 */
+			case 0x62: //hex b
+			{
+				line = ib(line);
+				break;
+			}
+			/*
+			 * Determines if instruction is: DIV, DIVD, DIVF, or DIVU
+			 */
+			case 0x64: //hex d
+			{
+				line = id(line);
+				break;
+			}
+		}
+		return line;
+	}
 
+	
+	
+	
 	
 	
 	
@@ -254,49 +315,178 @@ public class Assembler
 		//}
 		
 		System.out.println(address);
-		parse(".asciiz dog");
-		System.out.println(stringTable.get(0));
+		parse("div r11 r15 r03");
+		//System.out.println(immediate);
 		//parse(".align 4");
 		//System.out.println(address);
 		
-		bufferedReader.close();
+		//bufferedReader.close();
 	}
 	
+	/****************************************************************************
+	 * Here follows helper methods that are mentioned above. The are properly   *
+	 * 		commented here, and do a lot of the grunt work.						*
+	 ***************************************************************************/
+	
+	/**
+	 * bType - modified iType, where rs1 is "00000" or rs1 depending on type, rs2
+	 * 		is "00000", and immediate is the 16-bit value of the address stored in
+	 * 		the stringTable that matches the name/label. 
+	 *  
+	 * @param line the input line
+	 * @return the final 26-bits of the Branch instructions (rs1/unused, unused, 
+	 * 		address of name)
+	 */
+	public static String bType(String line)
+	{
+		if (line.contains("z"))
+		{
+			int i = line.indexOf('r');
+			rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
+			while (rs1.length() < 5)
+			{
+				rs1 = "0" + rs1;
+			}
+			line = line.substring(i + 3);
+		}
+		else
+		{
+			rs1 = "00000";
+			line = line.substring(5);
+		}
+		
+		rs2 = "00000";
+		String s[];
+		for (int i = 0; i < symbolTable.size(); i++)
+		{
+			s = symbolTable.get(i);
+			if (s[0].equals(line))
+			{
+				immediate = s[1];
+			}
+		}
+		while (immediate.length() < 16)
+		{
+			immediate = "0" + immediate;
+		}
+			
+		return rs1 + rs2 + immediate;
+	}
+	
+	/**
+	 * iType - takes an input string, finds the first register, stores the value as
+	 * 		a 5-bit binary number; finds the second register, stores the value as a
+	 * 		5-bit binary number; stores the remainder as a 16-bit binary number.
+	 * 
+	 * @param line the entire input string
+	 * @return a string containing the last 26-bits of a I-Type instruction (rs1, rd,
+	 * 		and the immediate concatenated without spaces) 
+	 */
+	public static String iType(String line)
+	{
+		int i = line.indexOf('r');
+		rd = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
+		while (rd.length() < 5)
+		{
+			rd = "0" + rd;
+		}
+		
+		line = line.substring(i + 3);
+		i = line.indexOf('r');
+		rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
+		while (rd.length() < 5)
+		{
+			rs1 = "0" + rs1;
+		}
+		
+		immediate = Integer.toBinaryString(Integer.parseInt(line.substring(i + 4)));
+		while (immediate.length() < 16)
+		{
+			immediate = "0" + immediate;
+		}
+		return rs1 + rd + immediate;
+	}
+	
+	/**
+	 * rType56 - takes an input string, finds the first register, stores the value as
+	 * 		a 5-bit binary number; finds the second register, stores the value as a
+	 * 		5-bit binary number; stores the remainder as a 5-bit binary number; then
+	 * 		attaches a 5-bit "00000" unused string to the value. 
+	 * 
+	 * @param line the entire input string
+	 * @return a string containing the last 20-bits of a R-Type instruction (rs1, rs2,
+	 * 		rd, and the 5-bit unused string) 
+	 */
+	public static String rType56(String line)
+	{
+		int i = line.indexOf('r');
+		rd = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
+		while (rd.length() < 5)
+		{
+			rd = "0" + rd;
+		}
+		
+		line = line.substring(i + 3);
+		i = line.indexOf('r');
+		rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
+		while (rs1.length() < 5)
+		{
+			rs1 = "0" + rs1;
+		}
+
+		rs2 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 5)));
+		while (rs2.length() <5)
+		{
+			rs2 = "0" + rs2;
+		}
+
+		return rs1 + rs2 + rd + "00000";
+	}
+	
+	/**
+	 * rType65 - identical to rType56 in every way, except it adds an extra "0" to the
+	 * 		unused bits, so that there are 6 unused bits instead of 5.
+	 */
+	public static String rType65(String line)
+	{
+		return rType56(line) + "0";
+	}
 	
 	/****************************************************************************
 	 * Here follows random helper methods who are properly commented where they *
-	 * 		first occur in the program.                                         *
+	 * 		first occur in the program. They probably don't need to be their    *
+	 * 		methods, but it makes the code look cleaner, so....                 *
 	 ***************************************************************************/
 	
-	public static void t(String line)
+	/*
+	 * Helper methods for directives
+	 */
+	public static void a(String line)
 	{
-		if ((line.charAt(1) == 0x65) && (line.charAt(2) == 0x78)
-				&& (line.charAt(3) == 0x74)) // is it ".text" ?
+		int index;
+		if (line.charAt(1) == 0x6C) // hex l
 		{
-			if (line.length() < 5) // is it JUST ".text" ?
+			if ((line.charAt(2) == 0x69) && (line.charAt(3) == 0x67)
+					&& (line.charAt(4) == 0x6E)) //is it ".align" ?
 			{
-				address = 00;
+				index = ((int) Math.pow(2, Integer.parseInt(line.substring(6)))) - 1;
+				while ((address & index) != 0)
+				{
+					address++;
+				}
 			}
-			else // otherwise is ".text XXXX"
+		}
+		if (line.charAt(1) == 0x73) // hex s
+		{
+			if ((line.charAt(2) == 0x63) && (line.charAt(3) == 0x69)
+					&& (line.charAt(4) == 0x69) && (line.charAt(5) == 0x7A)) // is it ".asciiz" ?
 			{
-				address = Integer.parseInt(line.substring(5), 16);
+				String s = line.substring(7);
+				stringTable.add(s.substring(0, s.length()));
 			}
 		}
 	}
-	
-	public static void s(String line)
-	{
-		if ((line.charAt(1) == 0x70) && (line.charAt(2) == 0x61)
-				&& (line.charAt(3) == 0x63) && (line.charAt(4) == 0x65)) //is it ".space" ?
-		{
-			int index = Integer.parseInt(line.substring(6));
-			for (int i = 0; i < index; i++)
-			{
-				address++;
-			}
-		}
-	}
-	
+
 	public static void d(String line)
 	{
 		if (line.charAt(1) == 0x61) // hex a
@@ -330,6 +520,35 @@ public class Assembler
 		}
 	}
 	
+	public static void s(String line)
+	{
+		if ((line.charAt(1) == 0x70) && (line.charAt(2) == 0x61)
+				&& (line.charAt(3) == 0x63) && (line.charAt(4) == 0x65)) //is it ".space" ?
+		{
+			int index = Integer.parseInt(line.substring(6));
+			for (int i = 0; i < index; i++)
+			{
+				address++;
+			}
+		}
+	}
+	
+	public static void t(String line)
+	{
+		if ((line.charAt(1) == 0x65) && (line.charAt(2) == 0x78)
+				&& (line.charAt(3) == 0x74)) // is it ".text" ?
+		{
+			if (line.length() < 5) // is it JUST ".text" ?
+			{
+				address = 00;
+			}
+			else // otherwise is ".text XXXX"
+			{
+				address = Integer.parseInt(line.substring(5), 16);
+			}
+		}
+	}
+		
 	public static void w(String line)
 	{
 		if ((line.charAt(1) == 0x6F) && (line.charAt(2) == 0x72)
@@ -339,31 +558,115 @@ public class Assembler
 		}
 	}
 	
-	public static void a(String line)
+	/*
+	 * Helper methods for instructions
+	 */
+	public static String ia(String line)
 	{
-		int index;
-		if (line.charAt(1) == 0x6C) // hex l
+		String s;
+		
+		if (line.contains("i"))
 		{
-			if ((line.charAt(2) == 0x69) && (line.charAt(3) == 0x67)
-					&& (line.charAt(4) == 0x6E)) //is it ".align" ?
+			if (line.contains("n")) //ANDI
 			{
-				index = ((int) Math.pow(2, Integer.parseInt(line.substring(6)))) - 1;
-				while ((address & index) != 0)
-				{
-					address++;
-				}
+				s = "001100";
 			}
+			else if (line.contains("u")) //ADDUI
+			{
+				s = "001001";
+			}
+			else //ADDI
+			{
+				s = "001000";
+			}
+			line = s + iType(line);
 		}
-		if (line.charAt(1) == 0x73) // hex s
+		else
 		{
-			if ((line.charAt(2) == 0x63) && (line.charAt(3) == 0x69)
-					&& (line.charAt(4) == 0x69) && (line.charAt(5) == 0x7A)) // is it ".asciiz" ?
+			s = "000000";
+			String t;
+			if (line.charAt(2) == 0x6E) //AND
 			{
-				String s = line.substring(7);
-				stringTable.add(s.substring(0, s.length()));
+				t = rType56(line);
+				s += t + "100101";
+			}	
+			else if (line.charAt(3) == 0x66) //ADDF
+			{
+				t = rType65(line);
+				s += t + "00000";
 			}
+			else if (line.charAt(3) == 0x75) // ADDU
+			{
+				t = rType56(line);
+				s += t + "100001";
+			}
+			else if (line.charAt(3) == 0x64) // ADDD
+			{
+				t = rType65(line);
+				s += t + "00100";
+			}
+			else //ADD
+			{
+				t = rType56(line);
+				s += t + "100000";
+			}
+			line = s;
 		}
+		
+		return line;
 	}
 	
+	public static String ib(String line)
+	{
+		String s;
+		
+		if (line.contains("q")) //BEQZ
+		{
+			s = "000100";
+		}
+		else if (line.contains("z")) //BNEZ
+		{
+			s = "000101";
+		}
+		else if (line.contains("t")) // BFPT
+		{
+			s = "000110";
+		}
+		else //BFPF
+		{
+			s = "000111";
+		}
+		
+		return s + line;
+	}
+	
+	public static String id(String line)
+	{
+		String s = "000000";
+		String t;
+		
+		if (line.contains("f")) // DIVF
+		{
+			t = rType65(line);
+			s += t + "00011";
+		}
+		else if (line.contains("u")) //DIVU
+		{
+			t = rType65(line);
+			s += t + "10111";
+		}
+		else if (line.charAt(3) == 'd') // DIVD
+		{
+			t = rType65(line);
+			s += t + "00111";
+		}
+		else //DIV
+		{
+			t = rType65(line);
+			s += t + "01111";
+		}
+		
+		return s;
+	}
 	
 }
