@@ -23,6 +23,7 @@ public class Assembler
 	public String input;
 	public static String line;
 	public static String immediate;
+	public static String offset;
 	public static String rs1;
 	public static String rs2;
 	public static String rd;
@@ -316,13 +317,130 @@ public class Assembler
 				line = ij(line);
 				break;
 			}
+			/*
+			 * Determines if instruction is LB, LBU, LD, LED, LEF,
+			 * 		LF, LH, LHI, LHU, LTD, LTF, or LW.
+			 */
+			case 0x6C:
+			{
+				line = il(line);
+				break;
+			}
 		}
 		return line;
 	}
 
+	public static String il(String line)
+	{
+		String s = "000000";
+		String t;
+		
+		if (line.contains("e"))
+		{
+			t = eType(line);
+			if (line.contains("d")) //LED
+			{
+				s += t + "11100";
+			}
+			else //LEF
+			{
+				s += t + "10100";
+			}
+		}
+		else if (line.contains("t"))
+		{
+			t = eType(line);
+			if (line.contains("d")) //LTD
+			{
+				s += t + "11010";
+			}
+			else //LTF
+			{
+				s += t + "10010";
+			}	
+		}
+		else if (line.contains("f"))
+		{
+			if (line.contains("e")) //LEF
+			{
+				t = rType65(line);
+				s += t + "10100";
+			}
+			else //LF
+			{
+				t = lType(line);
+				s = "100110" + t;
+			}	
+		}
+		else if (line.contains("b"))
+		{
+			t = lType(line);
+			if (line.contains("u")) //LBU
+			{
+				s = "100100" + t;
+			}
+			else //LB
+			{
+				s = "100000" + t;
+			}
+		}
+		else if (line.contains("h"))
+		{
+			if (line.contains("u")) //LHU
+			{
+				t = lType(line);
+				s = "100101" + t;
+			}
+			else if (line.contains("i")) //LHI
+			{
+				t = lType2(line);
+				s = "100000" + t;
+			}
+			else //LH
+			{
+				t = lType(line);
+				s = "100001" + t;
+			}
+		}
+		else if (line.contains("w")) //LW
+		{
+			t = lType(line);
+			s = "100011" + t;
+		}
+		else //LD
+		{
+			t = lType(line);
+			s = "100111" + t;
+		}
+		return s;
+	}
+	
+	public static String lType(String line)
+	{
+		int i = line.indexOf('r');
+		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+
+		line = line.substring(i + 4);
+		i = line.indexOf('(');
+		offset = largeBit(Integer.toBinaryString(Integer.parseInt(line.substring(0, i))), 16);
+		
+		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 2, line.length() - 1))));
+		
+		return rs1 + rd + offset;
+	}
 	
 	
-	
+	public static String lType2(String line)
+	{
+		int i = line.indexOf('r');
+		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+				
+		rs1 = "00000";
+		
+		immediate = largeBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 4))), 16);
+		
+		return rs1 + rd + immediate;
+	}
 	
 
 	
@@ -334,7 +452,7 @@ public class Assembler
 		//}
 		
 		System.out.println(address);
-		parse("jalr r11");
+		parse("add r01 r11 r12");
 		//System.out.println(immediate);
 		//parse(".align 4");
 		//System.out.println(address);
@@ -361,11 +479,7 @@ public class Assembler
 		if (line.contains("z"))
 		{
 			int i = line.indexOf('r');
-			rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
-			while (rs1.length() < 5)
-			{
-				rs1 = "0" + rs1;
-			}
+			rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
 			line = line.substring(i + 3);
 		}
 		else
@@ -384,10 +498,7 @@ public class Assembler
 				immediate = s[1];
 			}
 		}
-		while (immediate.length() < 16)
-		{
-			immediate = "0" + immediate;
-		}
+		immediate = largeBit(immediate, 16);
 			
 		return rs1 + rs2 + immediate;
 	}
@@ -402,19 +513,11 @@ public class Assembler
 	public static String eType(String line)
 	{
 		int i = line.indexOf('r');
-		rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
-		while (rs1.length() < 5)
-		{
-			rs1 = "0" + rs1;
-		}
+		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
 		
 		line = line.substring(i + 3);
 		i = line.indexOf('r');
-		rs2 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
-		while (rs2.length() < 5)
-		{
-			rs2 = "0" + rs2;
-		}
+		rs2 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
 
 		return rs1 + rs2 + "00000000000";
 	}
@@ -431,25 +534,14 @@ public class Assembler
 	public static String iType(String line)
 	{
 		int i = line.indexOf('r');
-		rd = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
-		while (rd.length() < 5)
-		{
-			rd = "0" + rd;
-		}
+		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
 		
 		line = line.substring(i + 3);
 		i = line.indexOf('r');
-		rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
-		while (rd.length() < 5)
-		{
-			rs1 = "0" + rs1;
-		}
+		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
 		
-		immediate = Integer.toBinaryString(Integer.parseInt(line.substring(i + 4)));
-		while (immediate.length() < 16)
-		{
-			immediate = "0" + immediate;
-		}
+		immediate = largeBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 4))), 16);
+
 		return rs1 + rd + immediate;
 	}
 	
@@ -480,11 +572,8 @@ public class Assembler
 				immediate = s[1];
 			}
 		}
-		while (immediate.length() < 26)
-		{
-			immediate = "0" + immediate;
-		}	
-		return immediate;
+		
+		return largeBit(immediate, 26);
 	}
 	
 	/**
@@ -498,12 +587,8 @@ public class Assembler
 	{
 		line = line.replaceAll("r ", "t");
 		int i = line.indexOf('r');
-		rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
-		while (rs1.length() < 5)
-		{
-			rs1 = "0" + rs1;
-		}
-		
+		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+
 		return rs1 + "000000000000000000000";
 	}
 	
@@ -520,25 +605,13 @@ public class Assembler
 	public static String rType56(String line)
 	{
 		int i = line.indexOf('r');
-		rd = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
-		while (rd.length() < 5)
-		{
-			rd = "0" + rd;
-		}
-		
+		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+
 		line = line.substring(i + 3);
 		i = line.indexOf('r');
-		rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
-		while (rs1.length() < 5)
-		{
-			rs1 = "0" + rs1;
-		}
+		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
 
-		rs2 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 5)));
-		while (rs2.length() <5)
-		{
-			rs2 = "0" + rs2;
-		}
+		rs2 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 5))));
 
 		return rs1 + rs2 + rd + "00000";
 	}
@@ -553,6 +626,33 @@ public class Assembler
 		return rType56(line) + "0";
 	}
 	
+	/**
+	 * fiveBit - turns any string of less than 5 characters into a 5 character string
+	 * 		with leading 0's.
+	 * 
+	 * @param reg any register value that needs to be 5-bits in length
+	 * @return the 5-bit string
+	 */
+	public static String fiveBit(String reg)
+	{
+		return largeBit(reg, 5);
+	}
+	
+	/**
+	 * largeBit - does the same as fiveBit, except for lengths longer than 5.
+	 * 
+	 * @param reg the register that needs to be expanded 
+	 * @param length the length the reg needs to be
+	 * @return the length-bit string
+	 */
+	public static String largeBit(String reg, int length)
+	{
+		while (reg.length() < length)
+		{
+			reg = "0" + reg;
+		}
+		return reg;
+	}
 	
 	/****************************************************************************
 	 * Here follows random helper methods who are properly commented where they *
