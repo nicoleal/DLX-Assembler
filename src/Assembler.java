@@ -258,7 +258,7 @@ public class Assembler
 	 * 		"andi" because it starts with "a", and contains "i" and "n". 
 	 * 
 	 * INSTRUCTIONS CONSIDERED TO USE "SPECIAL" REGISTERS INCLUDE: cvtf2d, cvtf2i,
-	 * 		cvtd2f, cvtd2i, cvti2f, cvti2d,
+	 * 		cvtd2f, cvtd2i, cvti2f, cvti2d, 
 	 *  	
 	 * @param line the input string stripped of any leading spaces, labels, etc.
 	 */
@@ -292,6 +292,30 @@ public class Assembler
 				line = id(line);
 				break;
 			}
+			/*
+			 * Determines if instruction is EQD or DQF
+			 */
+			case 0x65:
+			{
+				line = ie(line);
+				break;
+			}
+			/*
+			 * Determines if instruction is GED, GEF, GTD, or GTF
+			 */
+			case 0x67:
+			{
+				line = ig(line);
+				break;
+			}
+			/*
+			 * Determines if instruction is J, JAL, JALR, or JR
+			 */
+			case 0x6A:
+			{
+				line = ij(line);
+				break;
+			}
 		}
 		return line;
 	}
@@ -300,12 +324,7 @@ public class Assembler
 	
 	
 	
-	
-	
-	
-	
-	
-	
+
 	
 	public static void main(String args[]) throws IOException
 	{
@@ -315,7 +334,7 @@ public class Assembler
 		//}
 		
 		System.out.println(address);
-		parse("div r11 r15 r03");
+		parse("jalr r11");
 		//System.out.println(immediate);
 		//parse(".align 4");
 		//System.out.println(address);
@@ -372,6 +391,33 @@ public class Assembler
 			
 		return rs1 + rs2 + immediate;
 	}
+
+	/**
+	 * eType - identical to rType65, but replaces third 5-bit section with a string
+	 * 		of 5 0's, making for an 11=bit unused string (rs1, rs2, 11-bit unused)
+	 * 
+	 * @param line the input string
+	 * @return the 21-bit decoded string (rs1, rs2, unused)
+	 */
+	public static String eType(String line)
+	{
+		int i = line.indexOf('r');
+		rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
+		while (rs1.length() < 5)
+		{
+			rs1 = "0" + rs1;
+		}
+		
+		line = line.substring(i + 3);
+		i = line.indexOf('r');
+		rs2 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
+		while (rs2.length() < 5)
+		{
+			rs2 = "0" + rs2;
+		}
+
+		return rs1 + rs2 + "00000000000";
+	}
 	
 	/**
 	 * iType - takes an input string, finds the first register, stores the value as
@@ -405,6 +451,60 @@ public class Assembler
 			immediate = "0" + immediate;
 		}
 		return rs1 + rd + immediate;
+	}
+	
+	/**
+	 * jType - modified bType, which only searches for the name in the symbol Table
+	 * 		and returns its 26-bit address.
+	 * 
+	 * @param line the input string
+	 * @return the 26-bit address string (name)
+	 */
+	public static String jType(String line)
+	{
+		if (line.contains("l"))
+		{
+			line = line.substring(4);
+		}
+		else
+		{
+			line = line.substring(2);
+		}
+
+		String s[];
+		for (int i = 0; i < symbolTable.size(); i++)
+		{
+			s = symbolTable.get(i);
+			if (s[0].equals(line))
+			{
+				immediate = s[1];
+			}
+		}
+		while (immediate.length() < 26)
+		{
+			immediate = "0" + immediate;
+		}	
+		return immediate;
+	}
+	
+	/**
+	 * jType2 - modified rType56, which finds rs1, stores it as a 5-bit binary, and
+	 * 		adds the remaining 21-bit unused character string.
+	 *  
+	 * @param line the input string
+	 * @return the 26-bit tail of the I-type instructions (rs1, unused)
+	 */
+	public static String jType2(String line)
+	{
+		line = line.replaceAll("r ", "t");
+		int i = line.indexOf('r');
+		rs1 = Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3)));
+		while (rs1.length() < 5)
+		{
+			rs1 = "0" + rs1;
+		}
+		
+		return rs1 + "000000000000000000000";
 	}
 	
 	/**
@@ -443,14 +543,16 @@ public class Assembler
 		return rs1 + rs2 + rd + "00000";
 	}
 	
+	
 	/**
 	 * rType65 - identical to rType56 in every way, except it adds an extra "0" to the
 	 * 		unused bits, so that there are 6 unused bits instead of 5.
-	 */
+	 */ 
 	public static String rType65(String line)
 	{
 		return rType56(line) + "0";
 	}
+	
 	
 	/****************************************************************************
 	 * Here follows random helper methods who are properly commented where they *
@@ -584,30 +686,25 @@ public class Assembler
 		else
 		{
 			s = "000000";
-			String t;
+			String t = rType56(line);
 			if (line.charAt(2) == 0x6E) //AND
 			{
-				t = rType56(line);
 				s += t + "100101";
 			}	
 			else if (line.charAt(3) == 0x66) //ADDF
 			{
-				t = rType65(line);
 				s += t + "00000";
 			}
 			else if (line.charAt(3) == 0x75) // ADDU
 			{
-				t = rType56(line);
 				s += t + "100001";
 			}
 			else if (line.charAt(3) == 0x64) // ADDD
 			{
-				t = rType65(line);
 				s += t + "00100";
 			}
 			else //ADD
 			{
-				t = rType56(line);
 				s += t + "100000";
 			}
 			line = s;
@@ -643,30 +740,106 @@ public class Assembler
 	public static String id(String line)
 	{
 		String s = "000000";
-		String t;
+		String t = rType65(line);
 		
 		if (line.contains("f")) // DIVF
 		{
-			t = rType65(line);
 			s += t + "00011";
 		}
 		else if (line.contains("u")) //DIVU
 		{
-			t = rType65(line);
 			s += t + "10111";
 		}
 		else if (line.charAt(3) == 'd') // DIVD
 		{
-			t = rType65(line);
 			s += t + "00111";
 		}
 		else //DIV
 		{
-			t = rType65(line);
 			s += t + "01111";
 		}
 		
 		return s;
 	}
 	
+	public static String ie(String line)
+	{
+		String s = "000000";
+			String t = eType(line);
+			if (line.contains("d")) //EQD
+			{
+				s += t + "11000";
+			}	
+			else //EQF
+			{
+				s += t + "10000";
+			}
+		line = s;
+		
+		return line;
+	}
+	
+	public static String ig(String line)
+	{
+		String s = "000000";
+		String t = eType(line);
+		if (line.contains("e"))
+		{
+			if (line.contains("d")) //GED
+			{
+				s += t + "11101";
+			}
+			else //GEF
+			{
+				s += t + "10101";
+			}
+		}
+		else
+		{
+			if (line.contains("d")) //GTD
+			{
+				s += t + "11011";
+			}
+			else //GTF
+			{
+				s += t + "10011";
+			}
+		}
+		line = s;
+		return line;
+	}
+	
+	public static String ij(String line)
+	{
+		String s;
+		String t;
+		if (line.contains("a"))
+		{
+			if (line.contains("al")) //JALR
+			{
+				t = jType2(line);
+				s = "010011" + t;
+			}
+			else //JAL
+			{
+				t = jType(line);
+				s = "000011" + t;
+			}
+		}
+		else
+		{
+			if (line.contains("jr")) //JR
+			{
+				t = jType2(line);
+				s = "010010" + t;
+			}
+			else //J
+			{
+				t = jType(line);
+				s = "000001" + t;
+			}
+		}
+		line = s;
+		return line;
+	}
 }
