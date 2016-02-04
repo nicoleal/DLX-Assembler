@@ -259,7 +259,8 @@ public class Assembler
 	 * 		"andi" because it starts with "a", and contains "i" and "n". 
 	 * 
 	 * INSTRUCTIONS CONSIDERED TO USE "SPECIAL" REGISTERS INCLUDE: cvtf2d, cvtf2i,
-	 * 		cvtd2f, cvtd2i, cvti2f, cvti2d, 
+	 * 		cvtd2f, cvtd2i, cvti2f, cvti2d, movfp2i, movi2fp, movi2s, movs2i, rfe, 
+	 * 		and trap. 
 	 *  	
 	 * @param line the input string stripped of any leading spaces, labels, etc.
 	 */
@@ -326,94 +327,85 @@ public class Assembler
 				line = il(line);
 				break;
 			}
+			/*
+			 * Determines if instruction is MOVD, MOVF, MULT, MULTD
+			 * 		MULTF, or MULTU 
+			 */
+			case 0x6D:
+			{
+				line = im(line);
+				break;
+			}
+			/*
+			 * Determines if instruction is NED, NEF, or NOP
+			 */
+			case 0x6E:
+			{
+				line = in(line);
+				break;
+			}
+			/*
+			 * Determines if instruction is OR or ORI
+			 */
+			case 0x6F:
+			{
+				line = io(line);
+				break;
+			}
+			/*
+			 * Determines if instruction is XOR or XORI
+			 */
+			case 0x78:
+			{
+				line = ix(line);
+				break;
+			}
 		}
 		return line;
 	}
 
-	public static String il(String line)
+
+	public static String im(String line)
 	{
 		String s = "000000";
-		String t;
 		
-		if (line.contains("e"))
+		if (line.contains("i2") || line.contains("2i"))
 		{
-			t = eType(line);
-			if (line.contains("d")) //LED
+			s = "";
+		}
+		else if (line.contains("v"))
+		{
+			if (line.contains("d")) //MOVD
 			{
-				s += t + "11100";
+				line = s + mType(line) + "1000011";
 			}
-			else //LEF
+			else //MOVF
 			{
-				s += t + "10100";
+				line = s + mType(line) + "1000010";
 			}
 		}
-		else if (line.contains("t"))
+		else if (line.contains("u")) // MULTU
 		{
-			t = eType(line);
-			if (line.contains("d")) //LTD
-			{
-				s += t + "11010";
-			}
-			else //LTF
-			{
-				s += t + "10010";
-			}	
+			line = s + rType65(line) + "10110";
 		}
-		else if (line.contains("f"))
+		else if (line.contains("f")) // MULTF
 		{
-			if (line.contains("e")) //LEF
-			{
-				t = rType65(line);
-				s += t + "10100";
-			}
-			else //LF
-			{
-				t = lType(line);
-				s = "100110" + t;
-			}	
+			line = s + rType65(line) + "00010";
 		}
-		else if (line.contains("b"))
+		else if (line.contains("d")) // MULTD
 		{
-			t = lType(line);
-			if (line.contains("u")) //LBU
-			{
-				s = "100100" + t;
-			}
-			else //LB
-			{
-				s = "100000" + t;
-			}
+			line = s + rType65(line) + "00110";
 		}
-		else if (line.contains("h"))
+		else //MULT
 		{
-			if (line.contains("u")) //LHU
-			{
-				t = lType(line);
-				s = "100101" + t;
-			}
-			else if (line.contains("i")) //LHI
-			{
-				t = lType2(line);
-				s = "100000" + t;
-			}
-			else //LH
-			{
-				t = lType(line);
-				s = "100001" + t;
-			}
+			line = s + rType65(line) + "01110";
 		}
-		else if (line.contains("w")) //LW
-		{
-			t = lType(line);
-			s = "100011" + t;
-		}
-		else //LD
-		{
-			t = lType(line);
-			s = "100111" + t;
-		}
-		return s;
+		
+		return line;
 	}
+
+	
+	
 	
 	public static String lType(String line)
 	{
@@ -422,11 +414,11 @@ public class Assembler
 
 		line = line.substring(i + 4);
 		i = line.indexOf('(');
-		offset = largeBit(Integer.toBinaryString(Integer.parseInt(line.substring(0, i))), 16);
+		immediate = largeBit(Integer.toBinaryString(Integer.parseInt(line.substring(0, i))), 16);
 		
 		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 2, line.length() - 1))));
 		
-		return rs1 + rd + offset;
+		return rs1 + rd + immediate;
 	}
 	
 	
@@ -437,7 +429,11 @@ public class Assembler
 				
 		rs1 = "00000";
 		
-		immediate = largeBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 4))), 16);
+		immediate = (Integer.toBinaryString(Integer.parseInt(line.substring(i + 4))));
+		while (immediate.length() < 16)
+		{
+			immediate = "0" + immediate;
+		}
 		
 		return rs1 + rd + immediate;
 	}
@@ -452,7 +448,7 @@ public class Assembler
 		//}
 		
 		System.out.println(address);
-		parse("add r01 r11 r12");
+		parse("multf r05 r13 r31");
 		//System.out.println(immediate);
 		//parse(".align 4");
 		//System.out.println(address);
@@ -593,6 +589,24 @@ public class Assembler
 	}
 	
 	/**
+	 * mType - modified rType56 that replaces rs2 with a 5-bit unused string.
+	 * 
+	 * @param line the input string
+	 * @return the 20-bit string (rs1, 5-bit unused, rd, 5-bit unused)
+	 */
+	public static String mType(String line)
+	{
+		int i = line.indexOf('r');
+		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		
+		line = line.substring(i + 3);
+		i = line.indexOf('r');
+		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+
+		return rs1 + "00000" + rd + "00000";
+	}
+	
+	/**
 	 * rType56 - takes an input string, finds the first register, stores the value as
 	 * 		a 5-bit binary number; finds the second register, stores the value as a
 	 * 		5-bit binary number; stores the remainder as a 5-bit binary number; then
@@ -606,11 +620,11 @@ public class Assembler
 	{
 		int i = line.indexOf('r');
 		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
-
+		
 		line = line.substring(i + 3);
 		i = line.indexOf('r');
 		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
-
+		
 		rs2 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 5))));
 
 		return rs1 + rs2 + rd + "00000";
@@ -642,16 +656,17 @@ public class Assembler
 	 * largeBit - does the same as fiveBit, except for lengths longer than 5.
 	 * 
 	 * @param reg the register that needs to be expanded 
-	 * @param length the length the reg needs to be
+	 * @param l the length the reg needs to be
 	 * @return the length-bit string
 	 */
-	public static String largeBit(String reg, int length)
+	public static String largeBit(String reg, int l)
 	{
-		while (reg.length() < length)
+		while (reg.length() < l)
 		{
 			reg = "0" + reg;
 		}
 		return reg;
+		
 	}
 	
 	/****************************************************************************
@@ -942,4 +957,141 @@ public class Assembler
 		line = s;
 		return line;
 	}
+	
+	public static String il(String line)
+	{
+		String s = "000000";
+		String t;
+		
+		if (line.contains("e"))
+		{
+			t = eType(line);
+			if (line.contains("d")) //LED
+			{
+				s += t + "11100";
+			}
+			else //LEF
+			{
+				s += t + "10100";
+			}
+		}
+		else if (line.contains("t"))
+		{
+			t = eType(line);
+			if (line.contains("d")) //LTD
+			{
+				s += t + "11010";
+			}
+			else //LTF
+			{
+				s += t + "10010";
+			}	
+		}
+		else if (line.contains("f"))
+		{
+			if (line.contains("e")) //LEF
+			{
+				t = rType65(line);
+				s += t + "10100";
+			}
+			else //LF
+			{
+				t = lType(line);
+				s = "100110" + t;
+			}	
+		}
+		else if (line.contains("b"))
+		{
+			t = lType(line);
+			if (line.contains("u")) //LBU
+			{
+				s = "100100" + t;
+			}
+			else //LB
+			{
+				s = "100000" + t;
+			}
+		}
+		else if (line.contains("h"))
+		{
+			if (line.contains("u")) //LHU
+			{
+				t = lType(line);
+				s = "100101" + t;
+			}
+			else if (line.contains("i")) //LHI
+			{
+				t = lType2(line);
+				s = "100000" + t;
+			}
+			else //LH
+			{
+				t = lType(line);
+				s = "100001" + t;
+			}
+		}
+		else if (line.contains("w")) //LW
+		{
+			t = lType(line);
+			return "100000" + t;
+		//	s =  + t;
+		}
+		else //LD
+		{
+			t = lType(line);
+			s = "100111" + t;
+		}
+		return s;
+	}
+	
+	public static String in(String line)
+	{
+		String s = "000000";
+		
+		if (line.contains("p")) // NOP
+		{
+			line = "00000000000000000000000000000000";
+		}
+		else if (line.contains("f")) //NEF
+		{
+			line = s + eType(line) + "10001";
+		}
+		else //NED
+		{
+			line = s + eType(line) + "11001";
+		}
+		return line;
+	}
+	
+	public static String io(String line)
+	{
+		String s = "000000";
+		
+		if (line.contains("i")) //ORI
+		{
+			line = "001101" + iType(line.replaceAll("ri", "t"));
+		}
+		else //OR
+		{
+			line = s + rType56(line.replaceAll("r ", "t")) + "100101";
+		}
+		
+		return line;
+	}
+	
+	public static String ix(String line)
+	{
+		String s = "000000";
+		
+		if (line.contains("i")) //XORI
+		{
+			line = "001110" + iType(line.replaceAll("ri", "t"));
+		}
+		else //XOR
+		{
+			line = s + rType56(line.replaceAll("r ", "t")) + "100110";
+		}
+		return line;
+	}
+	
 }
