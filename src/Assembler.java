@@ -20,6 +20,7 @@ public class Assembler
 {
 	public static int address = 0;
 	public static int data = 0x200;
+	public static String blank = "00000";
 	public String input;
 	public static String line;
 	public static String immediate;
@@ -114,8 +115,16 @@ public class Assembler
 		 }
 		 else
 		 {
-			 line = Integer.toString(Integer.parseInt(instruction(line), 2), 16);
-			 System.out.println(line);
+			 line = instruction(line);
+			 if (line.length() < 15)
+			 {
+				 int i = Integer.parseInt(instruction(line), 2) * 2; 
+				 System.out.println(Integer.toString(i, 16));
+			 }
+			 else
+			 {
+				System.out.println(Integer.toString(Integer.parseInt(line, 2), 16));
+			 }
 		 }	 
 	}
 	
@@ -252,7 +261,7 @@ public class Assembler
 	 * 		which determine which of the various instructions it is and encodes it
 	 * 		in the proper format. Assumes all instructions are written in LOWER
 	 * 		CASE LETTERS. Assumes all registers are entered as 2-digit values,
-	 * 		ie, 09 or 31, with no commas in the instruction.
+	 * 		ie, 09 or 31, with no commas in the instruction. Parentesis are allowed.
 	 * 
 	 * DOES NOT CHECK CHAR BY CHAR FOR CORRECT INSTRUCTION. An incorrect instruction
 	 * 		may slip past if it meets certain criteria - ie, "anei" will be read as
@@ -353,6 +362,17 @@ public class Assembler
 				break;
 			}
 			/*
+			 * Determines if instruction is SB, SD, SEQ, SEQI, SF, SGE,
+			 * 		SGEI, SGT, SGTI, SH, SLE, SLEI, SLL, SLLI, SLT, SLTI,
+			 * 		SNE, SNEI, SRA, SRAI, SRL, SRLI, SUB, SUBD, SUBF, SUBI, 
+			 * 		SUBU, SUBUI, or SW 
+			 */
+			case 0x73:
+			{
+				line = is(line);
+				break;
+			}
+			/*
 			 * Determines if instruction is XOR or XORI
 			 */
 			case 0x78:
@@ -363,82 +383,15 @@ public class Assembler
 		}
 		return line;
 	}
-
-
-	public static String im(String line)
-	{
-		String s = "000000";
-		
-		if (line.contains("i2") || line.contains("2i"))
-		{
-			s = "";
-		}
-		else if (line.contains("v"))
-		{
-			if (line.contains("d")) //MOVD
-			{
-				line = s + mType(line) + "1000011";
-			}
-			else //MOVF
-			{
-				line = s + mType(line) + "1000010";
-			}
-		}
-		else if (line.contains("u")) // MULTU
-		{
-			line = s + rType65(line) + "10110";
-		}
-		else if (line.contains("f")) // MULTF
-		{
-			line = s + rType65(line) + "00010";
-		}
-		else if (line.contains("d")) // MULTD
-		{
-			line = s + rType65(line) + "00110";
-		}
-		else //MULT
-		{
-			line = s + rType65(line) + "01110";
-		}
-		
-		return line;
-	}
-
 	
 	
 	
-	public static String lType(String line)
-	{
-		int i = line.indexOf('r');
-		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
-
-		line = line.substring(i + 4);
-		i = line.indexOf('(');
-		immediate = largeBit(Integer.toBinaryString(Integer.parseInt(line.substring(0, i))), 16);
-		
-		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 2, line.length() - 1))));
-		
-		return rs1 + rd + immediate;
-	}
 	
 	
-	public static String lType2(String line)
-	{
-		int i = line.indexOf('r');
-		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
-				
-		rs1 = "00000";
-		
-		immediate = (Integer.toBinaryString(Integer.parseInt(line.substring(i + 4))));
-		while (immediate.length() < 16)
-		{
-			immediate = "0" + immediate;
-		}
-		
-		return rs1 + rd + immediate;
-	}
 	
-
+	
+	
+	
 	
 	public static void main(String args[]) throws IOException
 	{
@@ -448,7 +401,7 @@ public class Assembler
 		//}
 		
 		System.out.println(address);
-		parse("multf r05 r13 r31");
+		parse("slei r01 r19 11");
 		//System.out.println(immediate);
 		//parse(".align 4");
 		//System.out.println(address);
@@ -475,16 +428,15 @@ public class Assembler
 		if (line.contains("z"))
 		{
 			int i = line.indexOf('r');
-			rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+			rs1 = prettyRegs(i, line);
 			line = line.substring(i + 3);
 		}
 		else
 		{
-			rs1 = "00000";
+			rs1 = blank;
 			line = line.substring(5);
 		}
 		
-		rs2 = "00000";
 		String s[];
 		for (int i = 0; i < symbolTable.size(); i++)
 		{
@@ -496,7 +448,7 @@ public class Assembler
 		}
 		immediate = largeBit(immediate, 16);
 			
-		return rs1 + rs2 + immediate;
+		return rs1 + blank + immediate;
 	}
 
 	/**
@@ -509,13 +461,13 @@ public class Assembler
 	public static String eType(String line)
 	{
 		int i = line.indexOf('r');
-		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		rs1 = prettyRegs(i, line);
 		
 		line = line.substring(i + 3);
 		i = line.indexOf('r');
-		rs2 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		rs2 = prettyRegs(i, line);
 
-		return rs1 + rs2 + "00000000000";
+		return rs1 + rs2 + blank + blank + "0";
 	}
 	
 	/**
@@ -530,14 +482,14 @@ public class Assembler
 	public static String iType(String line)
 	{
 		int i = line.indexOf('r');
-		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		rd = prettyRegs(i, line);
 		
 		line = line.substring(i + 3);
 		i = line.indexOf('r');
-		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		rs1 = prettyRegs(i, line);
 		
-		immediate = largeBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 4))), 16);
-
+		immediate = prettyLarge(i + 4, line.length(), 15, line); 
+				
 		return rs1 + rd + immediate;
 	}
 	
@@ -583,9 +535,45 @@ public class Assembler
 	{
 		line = line.replaceAll("r ", "t");
 		int i = line.indexOf('r');
-		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		rs1 = prettyRegs(i, line);
 
-		return rs1 + "000000000000000000000";
+		return rs1 + blank + blank + blank + blank + "0";
+	}
+	
+	/**
+	 * lType - Modified rType65 that takes into account the offsets.
+	 * 
+	 * @param line the input line
+	 * @return the 26-bit string (rs1, rd, offset)
+	 */
+	public static String lType(String line)
+	{
+		int i = line.indexOf('r');
+		rd = prettyRegs(i, line);
+
+		line = line.substring(i + 4);
+		i = line.indexOf('(');
+		immediate = prettyLarge(0, i, 15, line);
+						
+		rs1 = prettyLarge(i + 2, line.length() - 1, 5, line);
+		
+		return rs1 + rd + immediate;
+	}
+	
+	/**
+	 * lType2 - Modified lType that takes into account the immediate
+	 * 
+	 * @param line the input string
+	 * @return the 26-bit string (rs1, rd, immediate)
+	 */
+	public static String lType2(String line)
+	{
+		int i = line.indexOf('r');
+		rd = prettyRegs(i, line);
+		
+		immediate = prettyLarge(i + 4, line.length(), 15, line);
+		System.out.println(immediate);		
+		return blank + rd + immediate;
 	}
 	
 	/**
@@ -597,13 +585,13 @@ public class Assembler
 	public static String mType(String line)
 	{
 		int i = line.indexOf('r');
-		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		rd = prettyRegs(i, line);
 		
 		line = line.substring(i + 3);
 		i = line.indexOf('r');
-		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		rs1 = prettyRegs(i, line);
 
-		return rs1 + "00000" + rd + "00000";
+		return rs1 + blank + rd + blank;
 	}
 	
 	/**
@@ -619,17 +607,16 @@ public class Assembler
 	public static String rType56(String line)
 	{
 		int i = line.indexOf('r');
-		rd = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		rd = prettyRegs(i, line);
 		
 		line = line.substring(i + 3);
 		i = line.indexOf('r');
-		rs1 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+		rs1 = prettyRegs(i, line);
 		
 		rs2 = fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 5))));
 
-		return rs1 + rs2 + rd + "00000";
+		return rs1 + rs2 + rd + blank;
 	}
-	
 	
 	/**
 	 * rType65 - identical to rType56 in every way, except it adds an extra "0" to the
@@ -638,6 +625,28 @@ public class Assembler
 	public static String rType65(String line)
 	{
 		return rType56(line) + "0";
+	}
+	
+	/**
+	 * sType - reversal of jType, accounting for offset at the begining
+	 * 
+	 * @param line the input line
+	 * @return the 26-bit string (rs1, rd, immediate)
+	 */
+	public static String sType(String line)
+	{
+		int i = line.indexOf('(');
+		int t = line.indexOf(' ') + 1;
+		immediate = prettyLarge(t, i, 15, line); 
+		
+		line = line.substring(i);
+		rs1 = prettyRegs(i, line);
+		
+		line = line.substring(i );
+		i = line.indexOf('r');
+		rd = prettyRegs(i, line);
+
+		return rs1 + rd + immediate;
 	}
 	
 	/**
@@ -666,7 +675,33 @@ public class Assembler
 			reg = "0" + reg;
 		}
 		return reg;
-		
+	}
+	
+	/**
+	 * prettyLarge - the version of prettyRegs for non-five-bit extentions, etc.
+	 * 
+	 * @param start the start of the substring
+	 * @param end the end of the substring
+	 * @param length how far to extend the string
+	 * @param line the input string
+	 * @return the "prettified" string
+	 */
+	public static String prettyLarge(int start, int end, int length, String line)
+	{
+		return largeBit(Integer.toBinaryString(Integer.parseInt(line.substring(start, end))), length);
+	}
+	
+	/**
+	 * prettyRegs - Takes advantage of a shared code pattern used for many registers.
+	 * 		basically does what it says on the tin.
+	 * 
+	 * @param i the index of the first r/register
+	 * @param line the input string
+	 * @return the 5-bit string 
+	 */
+	public static String prettyRegs(int i, String line)
+	{
+		return fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
 	}
 	
 	/****************************************************************************
@@ -800,27 +835,27 @@ public class Assembler
 		}
 		else
 		{
-			s = "000000";
+			s = "blank";
 			String t = rType56(line);
 			if (line.charAt(2) == 0x6E) //AND
 			{
-				s += t + "100101";
+				s += "0" + t + "100101";
 			}	
 			else if (line.charAt(3) == 0x66) //ADDF
 			{
-				s += t + "00000";
+				s += "1" + t + "00000";
 			}
 			else if (line.charAt(3) == 0x75) // ADDU
 			{
-				s += t + "100001";
+				s += "0" + t + "100001";
 			}
 			else if (line.charAt(3) == 0x64) // ADDD
 			{
-				s += t + "00100";
+				s += "1" + t + "00100";
 			}
 			else //ADD
 			{
-				s += t + "100000";
+				s += "0" + t + "100000";
 			}
 			line = s;
 		}
@@ -849,12 +884,12 @@ public class Assembler
 			s = "000111";
 		}
 		
-		return s + line;
+		return s + bType(line);
 	}
 	
 	public static String id(String line)
 	{
-		String s = "000000";
+		String s = "000001";
 		String t = rType65(line);
 		
 		if (line.contains("f")) // DIVF
@@ -876,10 +911,10 @@ public class Assembler
 		
 		return s;
 	}
-	
+		
 	public static String ie(String line)
 	{
-		String s = "000000";
+		String s = "000001";
 			String t = eType(line);
 			if (line.contains("d")) //EQD
 			{
@@ -896,7 +931,7 @@ public class Assembler
 	
 	public static String ig(String line)
 	{
-		String s = "000000";
+		String s = "000001";
 		String t = eType(line);
 		if (line.contains("e"))
 		{
@@ -926,41 +961,34 @@ public class Assembler
 	
 	public static String ij(String line)
 	{
-		String s;
-		String t;
 		if (line.contains("a"))
 		{
 			if (line.contains("al")) //JALR
 			{
-				t = jType2(line);
-				s = "010011" + t;
+				line = "010011" + jType2(line);
 			}
 			else //JAL
 			{
-				t = jType(line);
-				s = "000011" + t;
+				line = "000011" + jType(line);
 			}
 		}
 		else
 		{
 			if (line.contains("jr")) //JR
 			{
-				t = jType2(line);
-				s = "010010" + t;
+				line = "010010" + jType2(line);
 			}
 			else //J
 			{
-				t = jType(line);
-				s = "000001" + t;
+				line = "000001" + jType(line);
 			}
 		}
-		line = s;
 		return line;
 	}
 	
 	public static String il(String line)
 	{
-		String s = "000000";
+		String s = blank + "1";
 		String t;
 		
 		if (line.contains("e"))
@@ -992,12 +1020,11 @@ public class Assembler
 			if (line.contains("e")) //LEF
 			{
 				t = rType65(line);
-				s += t + "10100";
+				s += "1" + t + "10100";
 			}
 			else //LF
 			{
-				t = lType(line);
-				s = "100110" + t;
+				s = "100110" + lType(line);
 			}	
 		}
 		else if (line.contains("b"))
@@ -1016,37 +1043,70 @@ public class Assembler
 		{
 			if (line.contains("u")) //LHU
 			{
-				t = lType(line);
-				s = "100101" + t;
+				s = "100101" + lType(line);
 			}
 			else if (line.contains("i")) //LHI
 			{
-				t = lType2(line);
-				s = "100000" + t;
+				s = "100000" + lType2(line);
 			}
 			else //LH
 			{
-				t = lType(line);
-				s = "100001" + t;
+				s = "100001" + lType(line);
 			}
 		}
 		else if (line.contains("w")) //LW
 		{
-			t = lType(line);
-			return "100000" + t;
-		//	s =  + t;
+			return "100000" + lType(line);
 		}
 		else //LD
 		{
-			t = lType(line);
-			s = "100111" + t;
+			s = "100111" + lType(line);
 		}
 		return s;
 	}
 	
+	public static String im(String line)
+	{
+		String s = blank + "1";
+		
+		if (line.contains("i2") || line.contains("2i"))
+		{
+			s = "";
+		}
+		else if (line.contains("v"))
+		{
+			if (line.contains("d")) //MOVD
+			{
+				line = "blank" + "0" + mType(line) + "1000011";
+			}
+			else //MOVF
+			{
+				line = "blank" + "0" + mType(line) + "1000010";
+			}
+		}
+		else if (line.contains("f")) // MULTF
+		{
+			line = s + rType65(line) + "00010";
+		}
+		else if (line.contains("d")) // MULTD
+		{
+			line = s + rType65(line) + "00110";
+		}
+		else if (line.charAt(4) == 'u') // MULTU
+		{
+			line = s + rType65(line) + "10110";
+		}
+		else //MULT
+		{
+			line = s + rType65(line) + "01110";
+		}
+		
+		return line;
+	}
+	
 	public static String in(String line)
 	{
-		String s = "000000";
+		String s = "000001";
 		
 		if (line.contains("p")) // NOP
 		{
@@ -1065,31 +1125,191 @@ public class Assembler
 	
 	public static String io(String line)
 	{
-		String s = "000000";
-		
 		if (line.contains("i")) //ORI
 		{
 			line = "001101" + iType(line.replaceAll("ri", "t"));
 		}
 		else //OR
 		{
-			line = s + rType56(line.replaceAll("r ", "t")) + "100101";
+			line = "000000" + rType56(line.replaceAll("r ", "t")) + "100101";
 		}
 		
 		return line;
 	}
 	
-	public static String ix(String line)
+	public static String is(String line)
 	{
-		String s = "000000";
+		String s = blank;
 		
+		if (line.contains("h")) // SH
+		{
+			line = "101001" + sType(line);
+		}
+		else if (line.contains("w")) // SW
+		{
+			line = "101011" + sType(line);
+		}
+		else if (line.contains("q"))
+		{
+			if (line.contains("i")) // SEQI
+			{
+				line = "011000" + iType(line);
+			}
+			else // SEQ
+			{
+				line = s + "0" + rType56(line) + "101000";
+			}
+		}
+		else if (line.contains("b"))
+		{
+			line = isb(line);
+		}
+		else if (line.contains("g"))
+		{
+			if (line.contains("sgti")) //SGTI
+			{
+				line = "011011" + iType(line);
+			}
+			else if (line.contains("sgt")) // SGT
+			{
+				line = s + "0" + rType56(line) + "101011";
+			}
+			else if (line.contains("sgei")) // SGEI
+			{
+				line = "011101" + iType(line);
+			}
+			else //SGE
+			{
+				line = s + "0" + rType56(line) + "101101";
+			}
+		}
+		else if (line.contains("sr"))
+		{
+			if (line.contains("li")) // SRLI
+			{
+				line = "010110" + iType(line.replaceAll("rl", "t"));
+			}
+			else if (line.contains("l")) //SRL
+			{
+				line = s + "0" + rType56(line.replaceAll("rl", "t")) + "000110";
+			}
+			else if (line.contains("i")) //SRAI
+			{
+				line = "010111" + iType(line.replaceAll("ra", "t"));
+			}
+			else // SRA
+			{
+				line = s + "0" + rType56(line.replaceAll("ra", "t")) + "000111";
+			}
+		}
+		else if (line.contains("l"))
+		{
+			line = isl(line);
+		}
+		else if (line.contains("n"))
+		{
+			if (line.contains("i")) //SNEI
+			{
+				line = "011001" + iType(line);
+			}
+			else //SNE
+			{
+				line = s + "0" + rType56(line) + "101001";
+			}
+		}
+		else if (line.contains("d")) //SD
+		{
+			line = "101111" + sType(line);
+		}
+		else //SF
+		{
+			line = "101110" + iType(line);
+		}
+		return line;
+	}
+	
+	public static String isb(String line)
+	{
+		String s = blank;
+		
+		if (line.contains("d")) // SUBD
+		{
+			line = s + "1" + rType65(line) + "00101";
+		}
+		else if (line.contains("f")) // SUBF
+		{
+			line = s + "1" + rType65(line) + "00001";
+		}
+		else if (line.charAt(3) == 'i') //SUBI
+		{
+			line = "001010" + iType(line);
+		}
+		else if (line.charAt(4) == 'i') // SUBUI
+		{
+			line = "001011" + iType(line);
+		}
+		else if (line.charAt(3) == 'u') //SUBU
+		{
+			line = s + "0" + rType56(line) + "100011";
+		}
+		else if (line.charAt(1) == 'u')// SUB
+		{
+			line = s + "0" + rType56(line) + "100010";
+		}
+		else //SB
+		{
+			line = "101000" + sType (line);
+		}
+		return line;
+	}
+	
+	public static String isl(String line)
+	{
+		String t;
+		if (line.contains("i"))
+		{
+			t = iType(line);
+			if (line.contains("e")) //SLEI
+			{
+				line = "011100" + t;
+			}
+			else if (line.contains("t")) //SLTI
+			{
+				line = "011010" + t;
+			}
+			else //SLLI
+			{
+				line = "001100" + t;
+			}
+		}
+		else
+		{
+			t = rType56(line);
+			if (line.contains("e")) // SLE
+			{
+				line = t + "101110";
+			}
+			else if (line.contains("t")) // SLT
+			{
+				line = t + "101010";
+			}
+			else //SLL
+			{
+				line = t + "000100";
+			}		
+		}
+		return line;
+	}
+	
+	public static String ix(String line)
+	{	
 		if (line.contains("i")) //XORI
 		{
 			line = "001110" + iType(line.replaceAll("ri", "t"));
 		}
 		else //XOR
 		{
-			line = s + rType56(line.replaceAll("r ", "t")) + "100110";
+			line = "000000" + rType56(line.replaceAll("r ", "t")) + "100110";
 		}
 		return line;
 	}
