@@ -4,6 +4,8 @@
  * 		_The DLX Instruction Set Architecture Handbook_ by Sailer and Kaeli, omitting all 
  * 		instructions that modify or use a special register and/or use a trap, and including a
  * 		nop R-Type instruction with an opcode and function code of 0. 
+ * 
+ * 		The one that always pulls from "input.dlx" in the same folder and prints to "output.hex".
  *  
  * @author Nicole Loew
  * @version CS5483-101 Computer Architecture Spring 2016; 7 February 2016
@@ -29,7 +31,6 @@ public class Assembler
 	public static int data = 0x200;
 	
 	public static String blank = "00000";
-	public static String myFile = "input.dlx"
 	public static String input;
 	public static String immediate;
 	public static String line;
@@ -42,30 +43,18 @@ public class Assembler
 	public static PrintWriter writer;
 	//private static Scanner in;
 	
-	public static ArrayList<String[]> symbolTable;
-	public static ArrayList<String> stringTable;
-	public static ArrayList<Integer> dataTable;
-	public static ArrayList<Float> floatTable;
-	public static ArrayList<String> passOne;
+	public static ArrayList<String[]> symbolTable = new ArrayList<String[]>();
+	public static ArrayList<String> stringTable = new ArrayList<String>();
+	public static ArrayList<Integer> dataTable = new ArrayList<Integer>();
+	public static ArrayList<Float> floatTable = new ArrayList<Float>();
+	public static ArrayList<String> passOne = new ArrayList<String>();
 	
 	/********************************************************************
 	 * 																	*
 	 * 						Primary Methods							 	*
 	 * 																	*
 	 *******************************************************************/
-	
-	/**
-	 * No-arg constructor
-	 */
-	public Assembler()
-	{
-		symbolTable = new ArrayList<String[]>();
-		stringTable = new ArrayList<String>();
-		dataTable = new ArrayList<Integer>();
-		floatTable = new ArrayList<Float>();
-		passOne = new ArrayList<String>();
-	}
-	
+		
 	/**
 	 * directives - handles all directives. Assumes the period has been stripped from
 	 * 		the input string and all char are lower case. Each case is commented separately.
@@ -158,7 +147,7 @@ public class Assembler
 	public static void getInput() throws FileNotFoundException
 	{
 		//in = new Scanner(System.in);
-		input = myFile; //in.nextLine();
+		input = "input.dlx"; //in.nextLine();
 		//in.close();
 		FileReader fileReader = new FileReader(input);
 		bufferedReader = new BufferedReader(fileReader);
