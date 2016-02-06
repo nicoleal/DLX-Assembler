@@ -13,135 +13,58 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Scanner;
 
 public class Assembler 
 {
+	/********************************************************************
+	 * 																	*
+	 * 							Variables								*
+	 * 																	*
+	 *******************************************************************/
 	public static int address = 0;
 	public static int data = 0x200;
+	
 	public static String blank = "00000";
-	public String input;
-	public static String line;
+	public static String input;
 	public static String immediate;
+	public static String line;
 	public static String offset;
+	public static String rd;
 	public static String rs1;
 	public static String rs2;
-	public static String rd;
+	
 	public static BufferedReader bufferedReader;
-	static ArrayList<String[]> symbolTable = new ArrayList<String[]>();
-	static ArrayList<String> stringTable = new ArrayList<String>();
-	static ArrayList<Integer> dataTable = new ArrayList<Integer>();
-	static ArrayList<Float> floatTable = new ArrayList<Float>();
-	private Scanner in;
+	public static PrintWriter writer;
+	private static Scanner in;
 	
-	public static ArrayList<String> passOne = new ArrayList<String>();
+	public static ArrayList<String[]> symbolTable;
+	public static ArrayList<String> stringTable;
+	public static ArrayList<Integer> dataTable;
+	public static ArrayList<Float> floatTable;
+	public static ArrayList<String> passOne;
 	
+	/********************************************************************
+	 * 																	*
+	 * 						Primary Methods							 	*
+	 * 																	*
+	 *******************************************************************/
 	
+	/**
+	 * No-arg constructor
+	 */
 	public Assembler()
 	{
+		symbolTable = new ArrayList<String[]>();
+		stringTable = new ArrayList<String>();
+		dataTable = new ArrayList<Integer>();
+		floatTable = new ArrayList<Float>();
+		passOne = new ArrayList<String>();
 	}
 	
-	
-	
-	/**
-	 * getsInput - a method that reads the input file name from the console
-	 * 		and opens the File/Buffered Reader.
-	 * 
-	 * @throws FileNotFoundException
-	 */
-	public void getInput() throws FileNotFoundException
-	{
-		in = new Scanner(System.in);
-		input = in.nextLine();
-		in.close();
-		FileReader fileReader = new FileReader(input);
-		bufferedReader = new BufferedReader(fileReader);
-	}
-
-	/**
-	 * readLine - uses BufferedReader to read input file line by line
-	 * 
-	 * @throws IOException
-	 */
-	public void readLine() throws IOException
-	{
-		while((line = bufferedReader.readLine()) != null)
-		{
-			parse(line);
-		}
-		bufferedReader.close();
-	}
-	
-	/**
-	 * parse - determines if an input string is a label, if not, passes on
-	 * 		to moreParse(). Updates the address. Assumes that all labels
-	 * 		occur on their own lines, and are not followed by other instructions.
-	 * 
-	 * @param line the input string
-	 */
-	public static void parse(String line)
-	{
-		if (line.contains(":"))
-		{
-			 isLabel(line);
-			 address += 4;
-		}
-		else
-		{
-			moreParse(line);
-		}
-	}
-	
-	/**
-	 * moreParse - extends the functionality of parse by determining if instruction
-	 * 		is comment, directive, or instruction. All characters not semi-
-	 * 		colon, period, or null are assumed to be instructions.  
-	 * 
-	 * @param line the input line
-	 */
-	public static void moreParse(String line)
-	{
-		int index = 0;
-		char c = line.charAt(index);
-	 
-		while (c == 0x20) // hex " "
-		{
-			c = line.charAt(index + 1);
-		}
-		
-		if ((c == 0x3B) || (c == 0x2E)) // hex ; or .
-		{
-			 directives(line.substring(1));
-		}
-		else
-		{
-			stillMoreParse(line);
-			address += 4;
-		}
-	}
-	
-	/**
-	 * stillMorePare - extends the functionality of more parse by determining if
-	 * 		line is null or not. If null, assumed to be nop, otherwise assumed to
-	 * 		be instruction.
-	 * 
-	 * @param line the input string
-	 */
-	public static void stillMoreParse(String line)
-	{
-		 if (line.charAt(0) == 0x00) // NULL
-		 {
-			 line = nop();
-		 }
-		 
-		 else
-		 {
-			line = instruction(line);
-		 }
-		 prettyLines(line);
-	}
-
 	/**
 	 * directives - handles all directives. Assumes the period has been stripped from
 	 * 		the input string and all char are lower case. Each case is commented separately.
@@ -224,7 +147,22 @@ public class Assembler
 				break;
 		}
 	}
-
+	
+	/**
+	 * getsInput - a method that reads the input file name from the console
+	 * 		and opens the File/Buffered Reader.
+	 * 
+	 * @throws FileNotFoundException
+	 */
+	public static void getInput() throws FileNotFoundException
+	{
+		in = new Scanner(System.in);
+		input = in.nextLine();
+		in.close();
+		FileReader fileReader = new FileReader(input);
+		bufferedReader = new BufferedReader(fileReader);
+	}
+	
 	/**
 	 * instruction - takes on the Sisyphean task of decoding the DLX instructions
 	 * 		contains about as many helper methods as you can imagine this taking,
@@ -356,32 +294,119 @@ public class Assembler
 		return line;
 	}
 	
+	/**
+	 * moreParse - extends the functionality of parse by determining if instruction
+	 * 		is comment, directive, or instruction. All characters not semi-
+	 * 		colon, period, or null are assumed to be instructions.  
+	 * 
+	 * @param line the input line
+	 */
+	public static void moreParse(String line)
+	{
+		int index = 0;
+		char c = line.charAt(index);
+	 
+		while (c == 0x20) // hex " "
+		{
+			c = line.charAt(index + 1);
+		}
+		
+		if (c == '.')
+		{
+			 directives(line.substring(1));
+		}
+		else if (c == ';')
+		{
+			;
+		}
+		else
+		{
+			stillMoreParse(line);
+			address += 4;
+		}
+	}
 	
+	/**
+	 * Takes the instructions and prints them to an output file called
+	 * 		"output.hex"
+	 * 
+	 * @throws FileNotFoundException
+	 * @throws UnsupportedEncodingException
+	 */
+	public static void printer() throws FileNotFoundException, UnsupportedEncodingException
+	{
+		writer = new PrintWriter("output.hex", "UTF-8");
+		prettyPrinter(writer);
+		writer.close();
+	}
 	
+	/**
+	 * parse - determines if an input string is a label, if not, passes on
+	 * 		to moreParse(). Updates the address. Assumes that all labels
+	 * 		occur on their own lines, and are not followed by other instructions.
+	 * 
+	 * @param line the input string
+	 */
+	public static void parse(String line)
+	{
+		if (line.contains(":"))
+		{
+			 isLabel(line);
+			 address += 4;
+		}
+		else
+		{
+			moreParse(line);
+		}
+	}
+
+	/**
+	 * readLine - uses BufferedReader to read input file line by line
+	 * 
+	 * @throws IOException
+	 */
+	public void readLine() throws IOException
+	{
+		while((line = bufferedReader.readLine()) != null)
+		{
+			parse(line);
+		}
+		bufferedReader.close();
+	}
 	
-	
-	
-	
-	
-	
+	/**
+	 * stillMorePare - extends the functionality of more parse by determining if
+	 * 		line is null or not. If null, assumed to be nop, otherwise assumed to
+	 * 		be instruction.
+	 * 
+	 * @param line the input string
+	 */
+	public static void stillMoreParse(String line)
+	{
+		 if (line.charAt(0) == 0x00) // NULL
+		 {
+			 line = nop();
+		 }
+		 
+		 else
+		 {
+			line = instruction(line);
+		 }
+		 prettyLines(line);
+	}
+
+	/****************************************************************************
+	 * 																			*
+	 * 							Main Method										*
+	 * 																			*
+	 * @param args																*
+	 * @throws IOException														*
+	 ***************************************************************************/
 	
 	public static void main(String args[]) throws IOException
 	{
-		parse("add r01 r19 r11");
-		parse("dog:");
-		parse("add r01 r19 r11");
-		parse(".asciiz cat");
-		parse(".asciiz avkjdkjfhdsfhueskjd");
-		parse(".word 22");
-		parse(".word 2518432");
-		parse(".float 1.22");
-		parse(".double 1.2242");
-		parse("add r01 r19 r11");
-		parse("nop");
-		parse("add r01 r19 r11");
-		parse("add r01 r19 r11");
-		parse("bfpf dog");
-		prettyPrinter();
+		getInput();
+		printer();
 	}
 	
 	/****************************************************************************
@@ -652,8 +677,8 @@ public class Assembler
 	 */
 	public static void addressPrinter()
 	{
-		System.out.printf("%08d", Integer.parseInt(Integer.toHexString(address), 16));
-		System.out.print(": ");
+		writer.printf("%08d", Integer.parseInt(Integer.toHexString(address), 16));
+		writer.print(": ");
 		address += 4;
 	}
 	
@@ -785,42 +810,43 @@ public class Assembler
 	 * 		XXXXXXXX: XXXXXXXX
 	 * 		 address	 hex
 	 */
-	public static void prettyPrinter()
+	public static void prettyPrinter(PrintWriter writer)
 	{
 		address = 0;
+		String s;
 		for (int i = 0; i < passOne.size(); i++)
 		{
 			addressPrinter();
-			System.out.println(passOne.get(i));
+			writer.println(passOne.get(i));
 		}
 		for (int i = 0; i < stringTable.size(); i++)
 		{
 			parse(".align 4");
 			addressPrinter();
-			System.out.println("'" + stringTable.get(i) + "'");
+			writer.println("'" + stringTable.get(i) + "'");
 		}
 		for (int i = 0; i < dataTable.size(); i++)
 		{
 			parse(".align 4");
 			addressPrinter();
-			String s = Integer.toHexString(Integer.parseInt(dataTable.get(i).toString()));
+			s = Integer.toHexString(Integer.parseInt(dataTable.get(i).toString()));
 			while (s.length() < 8)
 			{
 				s = "0" + s;
 			}
-			System.out.println(s);
+			writer.println(s);
 		}
 		for (int i = 0; i < floatTable.size(); i++)
 		{
 			parse(".align 4");
 			addressPrinter();
-			String s = Integer.toHexString(Float.floatToIntBits(Float.parseFloat(
+			s = Integer.toHexString(Float.floatToIntBits(Float.parseFloat(
 					floatTable.get(i).toString())));
 			while (s.length() < 8)
 			{
 				s = "0" + s;
 			}
-			System.out.println(s);
+			writer.println(s);
 		}
 	}
 	
@@ -1466,5 +1492,4 @@ public class Assembler
 		}
 		return line;
 	}
-	
 }
