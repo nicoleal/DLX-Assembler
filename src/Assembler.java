@@ -43,19 +43,6 @@ public class Assembler
 	}
 	
 	
-	/**
-	 * addressPrinter - a method that prints the 8-digit hex value of the
-	 * 		address and then updates the address by 0x4. The format will
-	 * 		appear as follows, with a trailing space:
-	 * 
-	 * 		XXXXXXXX: 
-	 */
-	public static void addressPrinter()
-	{
-		System.out.printf("%08d", Integer.parseInt(Integer.toHexString(address), 16));
-		System.out.print(": ");
-		address += 4;
-	}
 	
 	/**
 	 * getsInput - a method that reads the input file name from the console
@@ -88,7 +75,8 @@ public class Assembler
 	
 	/**
 	 * parse - determines if an input string is a label, if not, passes on
-	 * 		to moreParse(). Updates the address.
+	 * 		to moreParse(). Updates the address. Assumes that all labels
+	 * 		occur on their own lines, and are not followed by other instructions.
 	 * 
 	 * @param line the input string
 	 */
@@ -97,14 +85,21 @@ public class Assembler
 		if (line.contains(":"))
 		{
 			 isLabel(line);
+			 address += 4;
 		}
 		else
 		{
 			moreParse(line);
 		}
-		address += 4;
 	}
 	
+	/**
+	 * moreParse - extends the functionality of parse by determining if instruction
+	 * 		is comment, directive, or instruction. All characters not semi-
+	 * 		colon, period, or null are assumed to be instructions.  
+	 * 
+	 * @param line the input line
+	 */
 	public static void moreParse(String line)
 	{
 		int index = 0;
@@ -114,82 +109,39 @@ public class Assembler
 		{
 			c = line.charAt(index + 1);
 		}
-		 
-		 
-		 if (c == 0x00) // NULL
+		
+		if ((c == 0x3B) || (c == 0x2E)) // hex ; or .
+		{
+			 directives(line.substring(1));
+		}
+		else
+		{
+			stillMoreParse(line);
+			address += 4;
+		}
+	}
+	
+	/**
+	 * stillMorePare - extends the functionality of more parse by determining if
+	 * 		line is null or not. If null, assumed to be nop, otherwise assumed to
+	 * 		be instruction.
+	 * 
+	 * @param line the input string
+	 */
+	public static void stillMoreParse(String line)
+	{
+		 if (line.charAt(0) == 0x00) // NULL
 		 {
 			 line = nop();
 		 }
-		 else if (c == 0x3B); // hex ;
-		 else if (c == 0x2E) //hex .
-		 {
-			 directives(line.substring(1));
-		 }
+		 
 		 else
 		 {
-			 String s;
-			 line = instruction(line);
-			 if (line.length() < 9)
-			 {
-				 while (line.length() < 8)
-				 {
-					 line = "0" + line;
-				 }
-				 passOne.add(line);
-			 }
-			 else if (line.length() < 32)
-			 {
-				 int i = Integer.parseInt(instruction(line), 2) * 2;
-				 s = Integer.toString(i, 16);
-				 if (s.length() < 8)
-					 s = "0" + s;
-				 passOne.add(s);
-			 }
-			 else
-			 {
-				 s = Integer.toString(Integer.parseInt(line, 2), 16);
-				 if (s.length() < 8)
-					 s = "0" + s;
-				 passOne.add(s);
-			 }
+			line = instruction(line);
 		 }
-		
+		 prettyLines(line);
 	}
-	
-	/**
-	 * isLabel - determines if the instruction begins with a label. If so,
-	 * 		it determines the index of the colon, strips everything that
-	 * 		occurs before it into its own string before passing it and the
-	 * 		instruction address to the symbolTable, and returns everything that
-	 * 		occurs after the colon to parse(); otherwise it returns parse
-	 * 		unchanged, as shown below:
-	 * 
-	 * 		XXXXXXXX: XXXXXXXXXX		or		XXXXXXXXXX:
-	 * 		  LABEL      LINE					   LINE
-	 * 
-	 * @param line the original input string
-	 * @return line minus any labels that may exist
-	 */
-	public static void isLabel(String line)
-	{
-		int c = 0x3A; // hex :
-		c = line.indexOf(c);
-		String label = line.substring(0, c);
-		String[] s = {label, ((Integer) address).toString()};
-		symbolTable.add(s);
-	}
-	
-	/**
-	 * nop - returns an operation with an operand and function value of 0x0;
-	 * 		i.e., 0x00000000.
-	 * 
-	 * @return the nop hex code
-	 */
-	public static String nop()
-	{
-		return "00000000";
-	}
-	
+
 	/**
 	 * directives - handles all directives. Assumes the period has been stripped from
 	 * 		the input string and all char are lower case. Each case is commented separately.
@@ -280,7 +232,7 @@ public class Assembler
 	 * 		in the proper format. Assumes all instructions are written in LOWER
 	 * 		CASE LETTERS. Assumes all registers are entered as 2-digit values,
 	 * 		ie, 09 or 31, with no commas in the instruction. Parenthesis are allowed.
-	 * 		Assumes names/labels only occur in J-type instructions 
+	 * 		Assumes names only occur in B/J-type instructions. 
 	 * 
 	 * DOES NOT CHECK CHAR BY CHAR FOR CORRECT INSTRUCTION. An incorrect instruction
 	 * 		may slip past if it meets certain criteria - ie, "anei" will be read as
@@ -291,6 +243,7 @@ public class Assembler
 	 * 		and trap. 
 	 *  	
 	 * @param line the input string stripped of any leading spaces, labels, etc.
+	 * @return the 32-bit binary or 8-bit hex string accordingly
 	 */
 	public static String instruction(String line)
 	{
@@ -414,31 +367,21 @@ public class Assembler
 	
 	public static void main(String args[]) throws IOException
 	{
-		//for (int i = 0; i < 12; i++)
-		//{
-			//addressPrinter();
-		//}
-		
-		//System.out.println(address);
 		parse("add r01 r19 r11");
 		parse("dog:");
-		System.out.println(address);
+		parse("add r01 r19 r11");
+		parse(".asciiz cat");
+		parse(".asciiz avkjdkjfhdsfhueskjd");
+		parse(".word 22");
+		parse(".word 2518432");
+		parse(".float 1.22");
+		parse(".double 1.2242");
+		parse("add r01 r19 r11");
+		parse("nop");
 		parse("add r01 r19 r11");
 		parse("add r01 r19 r11");
-		parse("add r01 r19 r11");
-		parse("add r01 r19 r11");
-		//System.out.println(address);
 		parse("bfpf dog");
-		//System.out.println(address);
-		
-		for (int i = 0; i < passOne.size(); i++)
-		{
-			addressPrinter();
-			System.out.println(passOne.get(i));
-		}
-		//parse(".align 4");
-		//addressPrinter();
-		//System.out.println(passOne.get(1));
+		prettyPrinter();
 	}
 	
 	/****************************************************************************
@@ -446,6 +389,9 @@ public class Assembler
 	 * 		commented here, and do a lot of the grunt work.						*
 	 ***************************************************************************/
 	
+	/*
+	 * Helper methods for instruction types/sub-types
+	 */
 	/**
 	 * bType - modified iType, where rs1 is "00000" or rs1 depending on type, rs2
 	 * 		is "00000", and immediate is the 16-bit value of the address stored in
@@ -673,7 +619,7 @@ public class Assembler
 	}
 	
 	/**
-	 * sType - reversal of jType, accounting for offset at the begining
+	 * sType - reversal of jType, accounting for offset at the beginning
 	 * 
 	 * @param line the input line
 	 * @return the 26-bit string (rs1, rd, immediate)
@@ -694,6 +640,23 @@ public class Assembler
 		return rs1 + rd + immediate;
 	}
 	
+	/*
+	 * Helper types for formatting
+	 */
+	/**
+	 * addressPrinter - a method that prints the 8-digit hex value of the
+	 * 		address and then updates the address by 0x4. The format will
+	 * 		appear as follows, with a trailing space:
+	 * 
+	 * 		XXXXXXXX: 
+	 */
+	public static void addressPrinter()
+	{
+		System.out.printf("%08d", Integer.parseInt(Integer.toHexString(address), 16));
+		System.out.print(": ");
+		address += 4;
+	}
+	
 	/**
 	 * fiveBit - turns any string of less than 5 characters into a 5 character string
 	 * 		with leading 0's.
@@ -706,6 +669,26 @@ public class Assembler
 		return largeBit(reg, 5);
 	}
 	
+	/**
+	 * isLabel - takes an instruction beginning with a label. Then
+	 * 		determines the index of the colon, strips everything that
+	 * 		occurs before it into its own string before passing it and the
+	 * 		instruction address to the symbolTable, as shown below:
+	 * 
+	 * 		XXXXXXXXXX:
+	 * 		  LABEL   
+	 * 
+	 * @param line the original input string
+	 */	
+	public static void isLabel(String line)
+	 {
+		int c = 0x3A; // hex :
+		c = line.indexOf(c);
+		String label = line.substring(0, c);
+		String[] s = {label, ((Integer) address).toString()};
+		symbolTable.add(s);
+	 }
+	 
 	/**
 	 * largeBit - does the same as fiveBit, except for lengths longer than 5.
 	 * 
@@ -720,6 +703,17 @@ public class Assembler
 			reg = "0" + reg;
 		}
 		return reg;
+	}
+	
+	/**
+	 * nop - returns an operation with an operand and function value of 0x0;
+	 * 		i.e., 0x00000000.
+	 * 
+	 * @return the nop hex code
+	 */
+	public static String nop()
+	{
+		return "00000000";
 	}
 	
 	/**
@@ -747,6 +741,87 @@ public class Assembler
 	public static String prettyRegs(int i, String line)
 	{
 		return fiveBit(Integer.toBinaryString(Integer.parseInt(line.substring(i + 1, i + 3))));
+	}
+	
+	/**
+	 * prettyLines - takes in the 7/8-bit hex or 31/32-bit binary produced by
+	 * 		instruction() or nop() and makes sure it prints in an 8-bit hex
+	 * 		format. All strings are are added to the first pass buffer (passOne) 
+	 * 		for later printing.
+	 * 
+	 * @param line the input string
+	 */
+	public static void prettyLines(String line)
+	{
+		if (line.length() < 9)
+		{
+
+		}
+		else if (line.length() < 32)
+		{
+			int i = Integer.parseInt(instruction(line), 2) * 2;
+			line = Integer.toString(i, 16);
+		}
+		else
+		{
+			line = Integer.toString(Integer.parseInt(line, 2), 16);
+		}
+		
+		while (line.length() < 8)
+		{
+			line = "0" + line;
+		}
+		passOne.add(line);
+	 }
+	
+	/**
+	 * prettyPrinter - expands on prettyLines to make sure the code prints out
+	 * 		in the proper format, without comments. Instructions, then strings,
+	 * 		then ints, then floats, are printed, as shown below. Strings remain
+	 * 		strings. Ints become their 8-bit hex value. Floats/Doubles are 
+	 * 		converted into ints and processed as 8-bit (or more) hex values.
+	 * 		Ints/Floats/Doubles/Words align to a 4-byte word size.
+	 * 
+	 * 		XXXXXXXX: XXXXXXXX
+	 * 		 address	 hex
+	 */
+	public static void prettyPrinter()
+	{
+		address = 0;
+		for (int i = 0; i < passOne.size(); i++)
+		{
+			addressPrinter();
+			System.out.println(passOne.get(i));
+		}
+		for (int i = 0; i < stringTable.size(); i++)
+		{
+			parse(".align 4");
+			addressPrinter();
+			System.out.println("'" + stringTable.get(i) + "'");
+		}
+		for (int i = 0; i < dataTable.size(); i++)
+		{
+			parse(".align 4");
+			addressPrinter();
+			String s = Integer.toHexString(Integer.parseInt(dataTable.get(i).toString()));
+			while (s.length() < 8)
+			{
+				s = "0" + s;
+			}
+			System.out.println(s);
+		}
+		for (int i = 0; i < floatTable.size(); i++)
+		{
+			parse(".align 4");
+			addressPrinter();
+			String s = Integer.toHexString(Float.floatToIntBits(Float.parseFloat(
+					floatTable.get(i).toString())));
+			while (s.length() < 8)
+			{
+				s = "0" + s;
+			}
+			System.out.println(s);
+		}
 	}
 	
 	/****************************************************************************
@@ -1188,7 +1263,7 @@ public class Assembler
 		
 		if (line.contains("p")) // NOP
 		{
-			line = "00000000000000000000000000000000";
+			line = nop();
 		}
 		else if (line.contains("f")) //NEF
 		{
