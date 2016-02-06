@@ -29,6 +29,7 @@ public class Assembler
 	public static int data = 0x200;
 	
 	public static String blank = "00000";
+	public static String myFile = "input.dlx"
 	public static String input;
 	public static String immediate;
 	public static String line;
@@ -39,7 +40,7 @@ public class Assembler
 	
 	public static BufferedReader bufferedReader;
 	public static PrintWriter writer;
-	private static Scanner in;
+	//private static Scanner in;
 	
 	public static ArrayList<String[]> symbolTable;
 	public static ArrayList<String> stringTable;
@@ -156,9 +157,9 @@ public class Assembler
 	 */
 	public static void getInput() throws FileNotFoundException
 	{
-		in = new Scanner(System.in);
-		input = in.nextLine();
-		in.close();
+		//in = new Scanner(System.in);
+		input = myFile; //in.nextLine();
+		//in.close();
 		FileReader fileReader = new FileReader(input);
 		bufferedReader = new BufferedReader(fileReader);
 	}
