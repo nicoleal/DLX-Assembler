@@ -35,7 +35,7 @@ public class Assembler
 	static ArrayList<Float> floatTable = new ArrayList<Float>();
 	private Scanner in;
 	
-	
+	public static ArrayList<String> passOne = new ArrayList<String>();
 	
 	
 	public Assembler()
@@ -83,25 +83,37 @@ public class Assembler
 		{
 			parse(line);
 		}
+		bufferedReader.close();
 	}
 	
 	/**
-	 * parse - determines if an input string is a label, nop, directive
-	 * 		or instruction. Has about five dozen helper methods to do
-	 * 		this, so more grand central than anything else.
+	 * parse - determines if an input string is a label, if not, passes on
+	 * 		to moreParse(). Updates the address.
 	 * 
 	 * @param line the input string
 	 */
 	public static void parse(String line)
 	{
-		 line = isLabel(line);
-		 int index = 0;
-		 char c = line.charAt(index);
-		 
-		 while (c == 0x20) // hex " "
-		 {
-			 c = line.charAt(index + 1);
-		 }
+		if (line.contains(":"))
+		{
+			 isLabel(line);
+		}
+		else
+		{
+			moreParse(line);
+		}
+		address += 4;
+	}
+	
+	public static void moreParse(String line)
+	{
+		int index = 0;
+		char c = line.charAt(index);
+	 
+		while (c == 0x20) // hex " "
+		{
+			c = line.charAt(index + 1);
+		}
 		 
 		 
 		 if (c == 0x00) // NULL
@@ -115,17 +127,33 @@ public class Assembler
 		 }
 		 else
 		 {
+			 String s;
 			 line = instruction(line);
-			 if (line.length() < 15)
+			 if (line.length() < 9)
 			 {
-				 int i = Integer.parseInt(instruction(line), 2) * 2; 
-				 System.out.println(Integer.toString(i, 16));
+				 while (line.length() < 8)
+				 {
+					 line = "0" + line;
+				 }
+				 passOne.add(line);
+			 }
+			 else if (line.length() < 32)
+			 {
+				 int i = Integer.parseInt(instruction(line), 2) * 2;
+				 s = Integer.toString(i, 16);
+				 if (s.length() < 8)
+					 s = "0" + s;
+				 passOne.add(s);
 			 }
 			 else
 			 {
-				System.out.println(Integer.toString(Integer.parseInt(line, 2), 16));
+				 s = Integer.toString(Integer.parseInt(line, 2), 16);
+				 if (s.length() < 8)
+					 s = "0" + s;
+				 passOne.add(s);
 			 }
-		 }	 
+		 }
+		
 	}
 	
 	/**
@@ -142,24 +170,14 @@ public class Assembler
 	 * @param line the original input string
 	 * @return line minus any labels that may exist
 	 */
-	public static String isLabel(String line)
+	public static void isLabel(String line)
 	{
-		if (line.contains(":"))
-		{
-			int c = 0x3A; // hex :
-			c = line.indexOf(c);
-			String label = line.substring(0, c);
-			String[] s = {label, ((Integer) address).toString()};
-			symbolTable.add(s);
-			
-			if (line.length() <= c) 
-			{
-				line = line.substring(c + 1);
-			}
-		}
-		return line;
+		int c = 0x3A; // hex :
+		c = line.indexOf(c);
+		String label = line.substring(0, c);
+		String[] s = {label, ((Integer) address).toString()};
+		symbolTable.add(s);
 	}
-	
 	
 	/**
 	 * nop - returns an operation with an operand and function value of 0x0;
@@ -243,7 +261,7 @@ public class Assembler
 			 * 		if in sequence, or otherwise only a single value. All numbers are
 			 * 		assumed to be entered as Integers. If not, break.
 			 * 
-			 * 		.word num1, num2, num3		or		.word num1
+			 * 		.word num1
 			 */
 			case 0x77: // hex w
 			{
@@ -261,7 +279,8 @@ public class Assembler
 	 * 		which determine which of the various instructions it is and encodes it
 	 * 		in the proper format. Assumes all instructions are written in LOWER
 	 * 		CASE LETTERS. Assumes all registers are entered as 2-digit values,
-	 * 		ie, 09 or 31, with no commas in the instruction. Parentesis are allowed.
+	 * 		ie, 09 or 31, with no commas in the instruction. Parenthesis are allowed.
+	 * 		Assumes names/labels only occur in J-type instructions 
 	 * 
 	 * DOES NOT CHECK CHAR BY CHAR FOR CORRECT INSTRUCTION. An incorrect instruction
 	 * 		may slip past if it meets certain criteria - ie, "anei" will be read as
@@ -400,13 +419,26 @@ public class Assembler
 			//addressPrinter();
 		//}
 		
+		//System.out.println(address);
+		parse("add r01 r19 r11");
+		parse("dog:");
 		System.out.println(address);
-		parse("slei r01 r19 11");
-		//System.out.println(immediate);
-		//parse(".align 4");
+		parse("add r01 r19 r11");
+		parse("add r01 r19 r11");
+		parse("add r01 r19 r11");
+		parse("add r01 r19 r11");
+		//System.out.println(address);
+		parse("bfpf dog");
 		//System.out.println(address);
 		
-		//bufferedReader.close();
+		for (int i = 0; i < passOne.size(); i++)
+		{
+			addressPrinter();
+			System.out.println(passOne.get(i));
+		}
+		//parse(".align 4");
+		//addressPrinter();
+		//System.out.println(passOne.get(1));
 	}
 	
 	/****************************************************************************
@@ -429,7 +461,7 @@ public class Assembler
 		{
 			int i = line.indexOf('r');
 			rs1 = prettyRegs(i, line);
-			line = line.substring(i + 3);
+			line = line.substring(i + 4);
 		}
 		else
 		{
@@ -445,10 +477,16 @@ public class Assembler
 			{
 				immediate = s[1];
 			}
-		}
+		}	
+				
 		immediate = largeBit(immediate, 16);
-			
-		return rs1 + blank + immediate;
+		immediate = "0000" + immediate;
+		while (immediate.length() < 6)
+		{
+			immediate = "0" + immediate;
+		}
+				
+		return Integer.toHexString(Integer.parseInt(immediate));
 	}
 
 	/**
@@ -520,8 +558,14 @@ public class Assembler
 				immediate = s[1];
 			}
 		}
+		immediate = Integer.toHexString(Integer.parseInt(largeBit(immediate, 24)));
+		while (immediate.length() < 6)
+		{
+			immediate = "0" + immediate;
+		}
 		
-		return largeBit(immediate, 26);
+		
+		return immediate;
 	}
 	
 	/**
@@ -536,6 +580,7 @@ public class Assembler
 		line = line.replaceAll("r ", "t");
 		int i = line.indexOf('r');
 		rs1 = prettyRegs(i, line);
+
 
 		return rs1 + blank + blank + blank + blank + "0";
 	}
@@ -572,7 +617,7 @@ public class Assembler
 		rd = prettyRegs(i, line);
 		
 		immediate = prettyLarge(i + 4, line.length(), 15, line);
-		System.out.println(immediate);		
+		
 		return blank + rd + immediate;
 	}
 	
@@ -593,7 +638,7 @@ public class Assembler
 
 		return rs1 + blank + rd + blank;
 	}
-	
+		
 	/**
 	 * rType56 - takes an input string, finds the first register, stores the value as
 	 * 		a 5-bit binary number; finds the second register, stores the value as a
@@ -678,7 +723,7 @@ public class Assembler
 	}
 	
 	/**
-	 * prettyLarge - the version of prettyRegs for non-five-bit extentions, etc.
+	 * prettyLarge - the version of prettyRegs for non-five-bit extensions, etc.
 	 * 
 	 * @param start the start of the substring
 	 * @param end the end of the substring
@@ -835,7 +880,7 @@ public class Assembler
 		}
 		else
 		{
-			s = "blank";
+			s = blank;
 			String t = rType56(line);
 			if (line.charAt(2) == 0x6E) //AND
 			{
@@ -866,25 +911,58 @@ public class Assembler
 	public static String ib(String line)
 	{
 		String s;
+		String t = bType(line);
+		while (t.length() < 6)
+		{
+			t = "0" + t;
+		}
 		
 		if (line.contains("q")) //BEQZ
 		{
-			s = "000100";
+			if (t.charAt(0) > '7')
+			{
+				s = "09" + (t.charAt(0) - 1) + t.substring(1);
+			}
+			else
+			{
+				s = "08" + t;
+			}
 		}
 		else if (line.contains("z")) //BNEZ
 		{
-			s = "000101";
+			if (t.charAt(0) > '7')
+			{
+				s = "0b" + (t.charAt(0) - 1) + t.substring(1);
+			}
+			else
+			{
+				s = "0a" + t;
+			}
 		}
 		else if (line.contains("t")) // BFPT
 		{
-			s = "000110";
+			if (t.charAt(0) > '7')
+			{
+				s = "0d" + (t.charAt(0) - 1) + t.substring(1);
+			}
+			else
+			{
+				s = "0c" + t;
+			}
 		}
 		else //BFPF
 		{
-			s = "000111";
+			if (t.charAt(0) > '7')
+			{
+				s = "0f" + (t.charAt(0) - 1) + t.substring(1);
+			}
+			else
+			{
+				s = "0d" + t;
+			}
 		}
 		
-		return s + bType(line);
+		return s;
 	}
 	
 	public static String id(String line)
@@ -963,13 +1041,13 @@ public class Assembler
 	{
 		if (line.contains("a"))
 		{
-			if (line.contains("al")) //JALR
+			if (line.contains("alr")) //JALR
 			{
 				line = "010011" + jType2(line);
 			}
 			else //JAL
 			{
-				line = "000011" + jType(line);
+				line = "C" + jType(line);
 			}
 		}
 		else
@@ -980,7 +1058,7 @@ public class Assembler
 			}
 			else //J
 			{
-				line = "000001" + jType(line);
+				line = "4" + jType(line);
 			}
 		}
 		return line;
